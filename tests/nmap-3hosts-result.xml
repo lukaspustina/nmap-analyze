@@ -60,7 +60,7 @@
   </host>
   <host starttime="1531991145" endtime="1531991170">
     <status state="up" reason="user-set" reason_ttl="0"/>
-    <address addr="192.168.0.2" addrtype="ipv4"/>
+    <address addr="192.168.0.3" addrtype="ipv4"/>
     <hostnames>
       <hostname name="192.168.0.3" type="user"/>
     </hostnames>

@@ -20,6 +20,8 @@ fn from_str<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     T::from_str(&s).map_err(de::Error::custom)
 }
 
+pub mod analyze;
+pub mod mapping;
 pub mod nmap;
 pub mod whitelist;
 

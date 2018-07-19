@@ -10,4 +10,4 @@ whitelists:
     ports:
       - id: 22
         state: open
-        
+

@@ -18,15 +18,15 @@ pub struct Whitelists {
 
 #[derive(Debug, Deserialize)]
 pub struct Whitelist {
-    name: String,
-    ports: Vec<Port>
+    pub name: String,
+    pub ports: Vec<Port>
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Port {
-    id: u16,
+    pub id: u16,
     #[serde(deserialize_with = "from_str")]
-    state: PortState
+    pub state: PortState
 }
 
 #[derive(Debug)]
@@ -48,23 +48,10 @@ impl FromStr for PortState {
     }
 }
 
-pub type Mapping = Vec<Host>;
-
-#[derive(Debug, Deserialize)]
-pub struct Host {
-    id: String,
-    hostname: String,
-    #[serde(deserialize_with = "from_str")]
-    ip: IpAddr,
-    name: String,
-    whitelist: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use serde_json;
     use serde_yaml;
 
     #[test]
@@ -84,37 +71,5 @@ whitelists:
         "##;
         let whitelists: Whitelists = serde_yaml::from_str(s).unwrap();
         println!("{:#?}", whitelists);
-    }
-
-
-    #[test]
-    fn parse_mapping_okay() {
-        let s = r##"
-[
-  {
-    "hostname": "ec2-192.168.0.1",
-    "id": "i-0",
-    "ip": "192.168.0.1",
-    "name": "Group A server",
-    "whitelist": "Group A"
-  },
-  {
-    "hostname": "ec2-192.168.0.2",
-    "id": "i-1",
-    "ip": "192.168.0.2",
-    "name": "Group B server",
-    "whitelist": "Group B"
-  },
-  {
-    "hostname": "ec2-192.168.0.3",
-    "id": "i-2",
-    "ip": "192.168.0.3",
-    "name": "Group A server",
-    "whitelist": "Group A"
-  }
-]
-        "##;
-        let mapping: Mapping = serde_json::from_str(s).unwrap();
-        println!("{:#?}", mapping);
     }
 }
