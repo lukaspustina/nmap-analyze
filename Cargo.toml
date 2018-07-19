@@ -1,0 +1,17 @@
+[package]
+name = "nmap-analyze"
+version = "0.0.1"
+authors = ["Lukas Pustina <lukas@pustina.net>"]
+
+[dependencies]
+failure = "^0.1"
+failure_derive = "^0.1"
+serde = "^1.0"
+serde_derive = "^1.0"
+serde_json = "^1.0"
+serde_yaml = "^0.7"
+serde-xml-rs = "^0.2"
+xml-rs = "0.6.0"
+
+[dev-dependencies]
+

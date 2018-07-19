@@ -1,0 +1,13 @@
+---
+whitelists:
+  - name: Group A
+    ports:
+      - id: 22
+        state: closed
+      - id: 25
+        state: open
+  - name: Group B
+    ports:
+      - id: 22
+        state: open
+        
