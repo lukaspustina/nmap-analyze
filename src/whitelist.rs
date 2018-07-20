@@ -66,7 +66,9 @@ whitelists:
         state: open
   - name: Group B
     ports:
-      - id: 22
+      - id: 80
+        state: open
+      - id: 443
         state: open
         "##;
         let whitelists: Whitelists = serde_yaml::from_str(s).unwrap();

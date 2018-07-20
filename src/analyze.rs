@@ -1,27 +1,111 @@
-use mapping::Mapping;
-use nmap::Run;
-use whitelist::Whitelists;
+use mapping::{self, Mapping};
+use nmap::{self, Run};
+use whitelist::{self, Whitelists};
+
+use std::collections::HashMap;
+use std::net::IpAddr;
 
 #[derive(Debug, PartialEq)]
-pub enum Analysis {
+pub enum AnalysisResult {
     Pass,
     Fail,
     Error,
 }
 
-pub struct Analyzer {
-    nmap_run: Run,
-    mapping: Mapping,
-    whitelists: Whitelists,
+#[derive(Debug, PartialEq)]
+pub enum PortAnalysisResult {
+    Pass(u16),
+    Fail(u16),
+    Unknown(u16),
 }
 
-impl Analyzer {
-    pub fn new(nmap_run: Run, mapping: Mapping, whitelists: Whitelists) -> Analyzer {
-        Analyzer{ nmap_run, mapping, whitelists }
+pub struct Analyzer<'a> {
+    scanned_hosts_by_ip: HashMap<&'a IpAddr, &'a nmap::Host>,
+    whitelist_name_by_ip: HashMap<&'a IpAddr, &'a str>,
+    whitelists_by_name: HashMap<&'a str, &'a whitelist::Whitelist>,
+}
+
+impl<'a> Analyzer<'a> {
+    pub fn new<'b>(nmap_run: &'b Run, mapping: &'b Mapping, whitelists: &'b Whitelists) -> Analyzer<'b> {
+        let scanned_hosts_by_ip = run_to_scanned_hosts_by_ip(&nmap_run);
+        let whitelist_name_by_ip = mapping_to_whitelist_name_by_ip(&mapping);
+        let whitelists_by_name = whitelists_to_whitelist_by_name(&whitelists);
+
+        Analyzer {
+            scanned_hosts_by_ip,
+            whitelist_name_by_ip,
+            whitelists_by_name,
+        }
     }
 
-    pub fn analyze(&self) -> Analysis {
-        Analysis::Error
+    pub fn analyze(&self) -> Vec<AnalysisResult> {
+        self.scanned_hosts_by_ip.iter().map( |(ip, host)| {
+            // TODO Add error for host w/o corresponding whitelist
+            let wl_name = self.whitelist_name_by_ip.get(ip).unwrap();
+            let wl = self.whitelists_by_name.get(wl_name).unwrap();
+            analyze_host(ip, host, wl)
+        }).collect()
+    }
+}
+
+fn run_to_scanned_hosts_by_ip(nmap_run: &Run) -> HashMap<&IpAddr, &nmap::Host> {
+    let mut shbi = HashMap::new();
+    for host in &nmap_run.hosts {
+        shbi.insert(&host.address.addr, host);
+    }
+
+    shbi
+}
+
+fn mapping_to_whitelist_name_by_ip(mapping: &Mapping) -> HashMap<&IpAddr, &str> {
+    let mut wnbi = HashMap::new();
+    for m in mapping {
+        wnbi.insert(&m.ip, m.whitelist.as_ref());
+    }
+
+    wnbi
+}
+
+fn whitelists_to_whitelist_by_name(whitelists: &Whitelists) -> HashMap<&str, &whitelist::Whitelist> {
+    let mut wbn = HashMap::new();
+    for wl in &whitelists.whitelists {
+        wbn.insert(wl.name.as_ref(), wl);
+    }
+
+    wbn
+}
+
+fn analyze_host(ip: &IpAddr, host: &nmap::Host, whitelist: &whitelist::Whitelist) -> AnalysisResult {
+    let ports: Vec<PortAnalysisResult> = host.ports.ports.iter().map( |port| {
+        // TODO Handle case where port is not found: Has it been scanned? -> extraports
+        let wl_port = if let Some(wp) = whitelist.ports.iter().find(|x| x.id== port.portid) {
+            wp
+        } else {
+            let par = PortAnalysisResult::Unknown(port.portid);
+            println!("Result for host {}, port {} is {:?}",  ip, port.portid, par);
+            return par;
+        };
+        let par = match wl_port {
+            whitelist::Port { id: _, state: whitelist::PortState::Open }
+                if port.state.state == nmap::PortStatus::Open => PortAnalysisResult::Pass(port.portid),
+            whitelist::Port { id: _, state: whitelist::PortState::Closed }
+                if port.state.state != nmap::PortStatus::Open => PortAnalysisResult::Pass(port.portid),
+            _ => PortAnalysisResult::Fail(port.portid),
+        };
+        println!("Result for host {}, port {} is {:?}",  ip, port.portid, par);
+        par
+    }).collect();
+
+    println!("Results for host {} is {:?}", ip, ports);
+
+    let failed = ports.iter().filter(|x| match x {
+        PortAnalysisResult::Pass(_) => false,
+        _ => true,
+    }).count();
+    if failed > 0 {
+        AnalysisResult::Fail
+    } else {
+        AnalysisResult::Pass
     }
 }
 
@@ -33,16 +117,57 @@ mod tests {
     use mapping;
     use whitelist;
 
+    use spectral::prelude::*;
+
+    #[test]
+    fn run_to_scanned_hosts_by_ip_okay() {
+        let run = nmap_data();
+
+        let shbi: HashMap<_, _> = run_to_scanned_hosts_by_ip(&run);
+
+        assert_eq!(shbi.len(), 2);
+        let host1_ip: IpAddr = "192.168.0.1".parse().unwrap();
+        assert!(shbi.get(&host1_ip).is_some());
+        let host3_ip: IpAddr = "192.168.0.3".parse().unwrap();
+        assert!(shbi.get(&host3_ip).is_some());
+    }
+
+    #[test]
+    fn mapping_to_whitelist_name_by_ip_okay() {
+        let mapping = mapping_data();
+
+        let wnbi: HashMap<_, _> = mapping_to_whitelist_name_by_ip(&mapping);
+
+        assert_eq!(wnbi.len(), 2);
+        let host1_ip: IpAddr = "192.168.0.1".parse().unwrap();
+        assert_eq!(wnbi.get(&host1_ip), Some(&"Group A"));
+        let host3_ip: IpAddr = "192.168.0.3".parse().unwrap();
+        assert_eq!(wnbi.get(&host3_ip), Some(&"Group B"));
+    }
+
+    #[test]
+    fn whitelists_to_whitelist_by_name_okay() {
+        let whitelists = whitelists_data();
+
+        let wbn: HashMap<_, _> = whitelists_to_whitelist_by_name(&whitelists);
+
+        assert_eq!(wbn.len(), 2);
+        assert!(wbn.get("Group A").is_some());
+        assert!(wbn.get("Group B").is_some());
+    }
+
     #[test]
     fn analyze_okay() {
         let nmap = nmap_data();
         let mapping = mapping_data();
         let whitelists = whitelists_data();
 
-        let analyzer = Analyzer::new(nmap, mapping, whitelists);
-        let result = analyzer.analyze();
+        let analyzer = Analyzer::new(&nmap, &mapping, &whitelists);
+        let analysis_results = analyzer.analyze();
 
-        assert_eq!(result, Analysis::Pass);
+        assert_that!(&analysis_results).has_length(2);
+        assert_that!(&analysis_results.get(0)).is_some().is_equal_to(&AnalysisResult::Fail);
+        assert_that!(&analysis_results.get(1)).is_some().is_equal_to(&AnalysisResult::Pass);
     }
 
     fn nmap_data() -> nmap::Run {
@@ -221,7 +346,11 @@ mod tests {
                     name: "Group B".to_owned(),
                     ports: vec![
                         Port {
-                            id: 22,
+                            id: 80,
+                            state: PortState::Open
+                        },
+                        Port {
+                            id: 443,
                             state: PortState::Open
                         }
                     ]

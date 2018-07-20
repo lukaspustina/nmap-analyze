@@ -14,4 +14,5 @@ serde-xml-rs = "^0.2"
 xml-rs = "0.6.0"
 
 [dev-dependencies]
+spectral = "^0.6"
 

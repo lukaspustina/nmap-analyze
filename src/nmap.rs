@@ -123,6 +123,7 @@ pub struct Ports {
 pub struct Port {
     pub protocol: String,
     #[serde(deserialize_with = "from_str")]
+    // TODO: serde rename this to `id`
     pub portid: u16,
     pub state: PortState,
     pub service: PortService,
@@ -137,7 +138,7 @@ pub struct PortState {
     pub reason_ttl: usize
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq)]
 // cf. nmap.dtd
 pub enum PortStatus {
   Open,

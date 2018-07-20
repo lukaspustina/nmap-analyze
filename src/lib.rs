@@ -7,6 +7,10 @@ extern crate serde_json;
 extern crate serde_yaml;
 extern crate serde_xml_rs;
 
+#[cfg(test)]
+#[macro_use]
+extern crate spectral;
+
 use serde::de::{self, Deserialize, Deserializer};
 use std::fmt::Display;
 use std::str::FromStr;
