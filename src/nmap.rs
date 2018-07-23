@@ -1,10 +1,15 @@
-use super::from_str;
+use super::{SanityCheck, from_str};
 
+use failure::Error;
 use std::net::IpAddr;
 use std::str::FromStr;
 
 #[derive(Debug, Fail)]
 pub enum NmapError {
+    #[fail(display = "invalid nmap file because {}", reason)]
+    InvalidNmapFile {
+        reason: String,
+    },
     #[fail(display = "invalid host state: {}", invalid)]
     InvalidHostState {
         invalid: String,
@@ -27,6 +32,21 @@ pub struct Run {
     pub start: u64,
     #[serde(rename = "host")]
     pub hosts: Vec<Host>
+}
+
+impl SanityCheck for Run {
+  fn is_sane(&self) -> Result<(), Error> {
+    if !self.has_dd_options() {
+      return Err(NmapError::InvalidNmapFile{ reason: "-dd must be used for nmap".to_owned() }.into());
+    }
+    Ok(())
+  }
+}
+
+impl Run {
+  fn has_dd_options(&self) -> bool {
+    self.args.contains("-dd")
+  }
 }
 
 #[derive(Debug, Deserialize)]
@@ -178,11 +198,25 @@ pub struct PortService {
 mod tests {
     use super::*;
 
+    use spectral::prelude::*;
     use serde_xml_rs;
 
     #[test]
-    fn parse_okay() {
-        let s = r##"
+    fn parse_no_dd_okay() {
+      let s = NMAP_NO_DD_DATA;
+      let nmaprun: Run = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
+      println!("{:#?}", nmaprun);
+    }
+
+    #[test]
+    fn no_dd_data_is_insane() {
+      let s = NMAP_NO_DD_DATA;
+      let nmaprun: Run = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
+
+      assert_that(&nmaprun.is_sane()).is_err();
+    }
+
+    const NMAP_NO_DD_DATA: &str = r##"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE nmaprun>
 <?xml-stylesheet href="file:///usr/local/bin/../share/nmap/nmap.xsl" type="text/xsl"?>
@@ -270,7 +304,4 @@ mod tests {
   </runstats>
 </nmaprun>
         "##;
-        let nmaprun: Run = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
-        println!("{:#?}", nmaprun);
-    }
 }

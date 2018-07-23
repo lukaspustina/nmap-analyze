@@ -11,6 +11,7 @@ extern crate serde_xml_rs;
 #[macro_use]
 extern crate spectral;
 
+use failure::Error;
 use serde::de::{self, Deserialize, Deserializer};
 use std::fmt::Display;
 use std::str::FromStr;
@@ -22,6 +23,10 @@ fn from_str<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 {
     let s = String::deserialize(deserializer)?;
     T::from_str(&s).map_err(de::Error::custom)
+}
+
+trait SanityCheck {
+    fn is_sane(&self) -> Result<(), Error>;
 }
 
 pub mod analyze;
