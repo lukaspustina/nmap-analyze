@@ -12,7 +12,8 @@ pub struct Host {
     #[serde(deserialize_with = "from_str")]
     pub ip: IpAddr,
     pub name: String,
-    pub whitelist: String,
+    #[serde(rename = "portspec")]
+    pub port_spec: String,
 }
 
 #[cfg(test)]
@@ -30,21 +31,21 @@ mod tests {
     "id": "i-0",
     "ip": "192.168.0.1",
     "name": "Group A server",
-    "whitelist": "Group A"
+    "portspec": "Group A"
   },
   {
     "hostname": "ec2-192.168.0.2",
     "id": "i-1",
     "ip": "192.168.0.2",
     "name": "Group B server",
-    "whitelist": "Group B"
+    "portspec": "Group B"
   },
   {
     "hostname": "ec2-192.168.0.3",
     "id": "i-2",
     "ip": "192.168.0.3",
     "name": "Group A server",
-    "whitelist": "Group A"
+    "portspec": "Group A"
   }
 ]
         "##;

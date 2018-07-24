@@ -1,8 +1,8 @@
 use mapping::{self, Mapping};
 use nmap::{self, Run};
-use whitelist::{self, Whitelists};
+use portspec::{self, PortSpecs};
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::net::IpAddr;
 
 #[derive(Debug, PartialEq)]
@@ -20,33 +20,35 @@ pub enum PortAnalysisResult {
 }
 
 pub struct Analyzer<'a> {
-    scanned_host_by_ip: HashMap<&'a IpAddr, &'a nmap::Host>,
-    whitelist_by_ip: HashMap<&'a IpAddr, &'a whitelist::Whitelist>,
+    scanned_host_by_ip: BTreeMap<&'a IpAddr, &'a nmap::Host>,
+    portspec_by_ip: BTreeMap<&'a IpAddr, &'a portspec::PortSpec>,
 }
 
 impl<'a> Analyzer<'a> {
-    /// TODO: Currently, there is no error handling for an IP that cannot be mapped to a whitelist.
-    pub fn new<'b>(nmap_run: &'b Run, mapping: &'b Mapping, whitelists: &'b Whitelists) -> Analyzer<'b> {
+    /// TODO: Currently, there is no error handling for an IP that cannot be mapped to a portspec.
+    pub fn new<'b>(nmap_run: &'b Run, mapping: &'b Mapping, portspecs: &'b PortSpecs) -> Analyzer<'b> {
         let scanned_host_by_ip = run_to_scanned_hosts_by_ip(&nmap_run);
-        let whitelist_by_ip = whitelist_by_ip(&mapping, &whitelists);
+        let portspec_by_ip = portspec_by_ip(&mapping, &portspecs);
 
         Analyzer {
             scanned_host_by_ip,
-            whitelist_by_ip,
+            portspec_by_ip,
         }
     }
 
     pub fn analyze(&self) -> Vec<AnalysisResult> {
-        self.scanned_host_by_ip.iter().map( |(ip, host)| {
-            // TODO Add error for host w/o corresponding whitelist
-            let wl = self.whitelist_by_ip.get(ip).unwrap();
+        self.scanned_host_by_ip
+            .iter()
+            .map( |(ip, host)| {
+            // TODO Add error for host w/o corresponding portspec
+            let wl = self.portspec_by_ip.get(ip).unwrap();
             analyze_host(ip, host, wl)
         }).collect()
     }
 }
 
-fn run_to_scanned_hosts_by_ip(nmap_run: &Run) -> HashMap<&IpAddr, &nmap::Host> {
-    let mut shbi = HashMap::new();
+fn run_to_scanned_hosts_by_ip(nmap_run: &Run) -> BTreeMap<&IpAddr, &nmap::Host> {
+    let mut shbi = BTreeMap::new();
     for host in &nmap_run.hosts {
         shbi.insert(&host.address.addr, host);
     }
@@ -54,12 +56,12 @@ fn run_to_scanned_hosts_by_ip(nmap_run: &Run) -> HashMap<&IpAddr, &nmap::Host> {
     shbi
 }
 
-fn whitelist_by_ip<'a>(mapping: &'a Mapping, whitelist: &'a Whitelists) -> HashMap<&'a IpAddr, &'a whitelist::Whitelist> {
-    let wls = whitelists_to_whitelist_by_name(whitelist);
-    let mut wbi = HashMap::new();
+fn portspec_by_ip<'a>(mapping: &'a Mapping, portspec: &'a PortSpecs) -> BTreeMap<&'a IpAddr, &'a portspec::PortSpec> {
+    let wls = portspecs_to_portspec_by_name(portspec);
+    let mut wbi = BTreeMap::new();
 
     for m in mapping {
-        let key: &str = &m.whitelist;
+        let key: &str = &m.port_spec;
         let wl = wls.get(key).unwrap(); // TODO: Error handling
         wbi.insert(&m.ip, *wl);
     }
@@ -67,19 +69,19 @@ fn whitelist_by_ip<'a>(mapping: &'a Mapping, whitelist: &'a Whitelists) -> HashM
     wbi
 }
 
-fn whitelists_to_whitelist_by_name(whitelists: &Whitelists) -> HashMap<&str, &whitelist::Whitelist> {
-    let mut wbn = HashMap::new();
-    for wl in &whitelists.whitelists {
+fn portspecs_to_portspec_by_name(portspecs: &PortSpecs) -> BTreeMap<&str, &portspec::PortSpec> {
+    let mut wbn = BTreeMap::new();
+    for wl in &portspecs.port_specs {
         wbn.insert(wl.name.as_ref(), wl);
     }
 
     wbn
 }
 
-fn analyze_host(ip: &IpAddr, host: &nmap::Host, whitelist: &whitelist::Whitelist) -> AnalysisResult {
+fn analyze_host(ip: &IpAddr, host: &nmap::Host, portspec: &portspec::PortSpec) -> AnalysisResult {
     let ports: Vec<PortAnalysisResult> = host.ports.ports.iter().map( |port| {
         // TODO Handle case where port is not found: Has it been scanned? -> extraports
-        let wl_port = if let Some(wp) = whitelist.ports.iter().find(|x| x.id== port.portid) {
+        let wl_port = if let Some(wp) = portspec.ports.iter().find(|x| x.id== port.portid) {
             wp
         } else {
             let par = PortAnalysisResult::Unknown(port.portid);
@@ -87,9 +89,9 @@ fn analyze_host(ip: &IpAddr, host: &nmap::Host, whitelist: &whitelist::Whitelist
             return par;
         };
         let par = match wl_port {
-            whitelist::Port { id: _, state: whitelist::PortState::Open }
+            portspec::Port { id: _, state: portspec::PortState::Open }
                 if port.state.state == nmap::PortStatus::Open => PortAnalysisResult::Pass(port.portid),
-            whitelist::Port { id: _, state: whitelist::PortState::Closed }
+            portspec::Port { id: _, state: portspec::PortState::Closed }
                 if port.state.state != nmap::PortStatus::Open => PortAnalysisResult::Pass(port.portid),
             _ => PortAnalysisResult::Fail(port.portid),
         };
@@ -116,7 +118,7 @@ mod tests {
 
     use nmap;
     use mapping;
-    use whitelist;
+    use portspec;
 
     use spectral::prelude::*;
 
@@ -124,7 +126,7 @@ mod tests {
     fn run_to_scanned_hosts_by_ip_okay() {
         let run = nmap_data();
 
-        let shbi: HashMap<_, _> = run_to_scanned_hosts_by_ip(&run);
+        let shbi: BTreeMap<_, _> = run_to_scanned_hosts_by_ip(&run);
 
         assert_eq!(shbi.len(), 2);
         let host1_ip: IpAddr = "192.168.0.1".parse().unwrap();
@@ -134,10 +136,10 @@ mod tests {
     }
 
     #[test]
-    fn whitelists_to_whitelist_by_name_okay() {
-        let whitelists = whitelists_data();
+    fn portspecs_to_portspec_by_name_okay() {
+        let portspecs = portspecs_data();
 
-        let wbn: HashMap<_, _> = whitelists_to_whitelist_by_name(&whitelists);
+        let wbn: BTreeMap<_, _> = portspecs_to_portspec_by_name(&portspecs);
 
         assert_eq!(wbn.len(), 2);
         assert!(wbn.get("Group A").is_some());
@@ -146,11 +148,11 @@ mod tests {
 
 
     #[test]
-    fn whitelist_by_ip_okay() {
+    fn portspec_by_ip_okay() {
         let mapping = mapping_data();
-        let whitelists = whitelists_data();
+        let portspecs = portspecs_data();
 
-        let wbi: HashMap<_, _> = whitelist_by_ip(&mapping, &whitelists);
+        let wbi: BTreeMap<_, _> = portspec_by_ip(&mapping, &portspecs);
 
         assert_eq!(wbi.len(), 2);
 
@@ -167,9 +169,9 @@ mod tests {
     fn analyze_okay() {
         let nmap = nmap_data();
         let mapping = mapping_data();
-        let whitelists = whitelists_data();
+        let portspecs = portspecs_data();
 
-        let analyzer = Analyzer::new(&nmap, &mapping, &whitelists);
+        let analyzer = Analyzer::new(&nmap, &mapping, &portspecs);
         let analysis_results = analyzer.analyze();
 
         assert_that!(&analysis_results).has_length(2);
@@ -319,24 +321,24 @@ mod tests {
                 hostname: "ec2-192.168.0.1".to_owned(),
                 ip: "192.168.0.1".parse().unwrap(),
                 name: "Group A server".to_owned(),
-                whitelist: "Group A".to_owned(),
+                port_spec: "Group A".to_owned(),
             },
             Host {
                 id: "i-0".to_owned(),
                 hostname: "ec2-192.168.0.3".to_owned(),
                 ip: "192.168.0.3".parse().unwrap(),
                 name: "Group B server".to_owned(),
-                whitelist: "Group B".to_owned(),
+                port_spec: "Group B".to_owned(),
             },
         ]
     }
 
-    fn whitelists_data() -> whitelist::Whitelists {
-        use whitelist::*;
+    fn portspecs_data() -> portspec::PortSpecs {
+        use portspec::*;
 
-        Whitelists {
-            whitelists: vec![
-                Whitelist {
+        PortSpecs {
+            port_specs: vec![
+                PortSpec {
                     name: "Group A".to_owned(),
                     ports: vec![
                         Port {
@@ -349,7 +351,7 @@ mod tests {
                         }
                     ]
                 },
-                Whitelist {
+                PortSpec {
                     name: "Group B".to_owned(),
                     ports: vec![
                         Port {

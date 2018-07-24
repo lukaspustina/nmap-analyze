@@ -32,7 +32,7 @@ pub trait SanityCheck {
 pub mod analyze;
 pub mod mapping;
 pub mod nmap;
-pub mod whitelist;
+pub mod portspec;
 
 pub use nmap::Run;
 

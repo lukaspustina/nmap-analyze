@@ -12,12 +12,13 @@ pub enum WhiltelistError {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Whitelists {
-    pub whitelists: Vec<Whitelist>,
+pub struct PortSpecs {
+    #[serde(rename = "portspecs")]
+    pub port_specs: Vec<PortSpec>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Whitelist {
+pub struct PortSpec {
     pub name: String,
     pub ports: Vec<Port>
 }
@@ -55,9 +56,9 @@ mod tests {
     use serde_yaml;
 
     #[test]
-    fn parse_whitelists_okay() {
+    fn parse_portspecs_okay() {
         let s = r##"---
-whitelists:
+portspecs:
   - name: Group A
     ports:
       - id: 22
@@ -71,7 +72,7 @@ whitelists:
       - id: 443
         state: open
         "##;
-        let whitelists: Whitelists = serde_yaml::from_str(s).unwrap();
-        println!("{:#?}", whitelists);
+        let port_specs: PortSpecs = serde_yaml::from_str(s).unwrap();
+        println!("{:#?}", port_specs);
     }
 }

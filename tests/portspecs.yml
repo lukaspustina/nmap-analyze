@@ -1,5 +1,5 @@
 ---
-whitelists:
+portspecs:
   - name: Group A
     ports:
       - id: 22
