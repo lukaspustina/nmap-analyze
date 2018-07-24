@@ -12,7 +12,6 @@
 <taskend task="SYN Stealth Scan" time="1532103887" extrainfo="1000 total ports"/>
 <host starttime="1532103886" endtime="1532103887"><status state="up" reason="arp-response" reason_ttl="0"/>
 <address addr="192.168.101.12" addrtype="ipv4"/>
-<address addr="00:11:32:5D:2E:BB" addrtype="mac" vendor="Synology Incorporated"/>
 <hostnames>
 <hostname name="kevin" type="user"/>
 </hostnames>

@@ -39,10 +39,7 @@ impl FromStr for Run {
     type Err = NmapError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-      let run: Run = serde_xml_rs::deserialize(s.as_bytes())
-        .map_err(|e| NmapError::InvalidNmapFile{
-          reason: format!("could not parse file, because {}", e)
-        })?;
+      let run: Run = Run::from_bytes(s.as_bytes())?;
 
       Ok(run)
     }
@@ -61,6 +58,20 @@ impl Run {
   fn has_dd_options(&self) -> bool {
     self.args.contains("-dd")
   }
+
+  fn from_bytes(buffer: &[u8]) -> Result<Self, NmapError> {
+    let run = serde_xml_rs::deserialize(buffer);
+    match run {
+      Ok(x) => Ok(x),
+      // cf. `Host#Address`
+      Err(serde_xml_rs::Error::Custom(ref s)) if s == "duplicate field `address`" => {
+        Err(NmapError::InvalidNmapFile{
+          reason: format!("could not parse file, because parser currently supports only one address per host", ) })
+      },
+      Err(e) => Err(NmapError::InvalidNmapFile{
+          reason: format!("could not parse file, because {}", e) }),
+    }
+  }
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,6 +81,9 @@ pub struct Host {
     #[serde(deserialize_with = "from_str")]
     pub endtime: usize,
     pub status: HostStatus,
+    /// A host may have multiple address. For example, if the host is part of the same broadcast
+    /// domain, i.e., on the same LAN, the MAC address is saved as well. Since we currently only
+    /// scan remote targets, we ignore this special case for now.
     pub address: Address,
     pub hostnames: HostNames,
     pub ports: Ports,
@@ -214,6 +228,41 @@ mod tests {
 
     use spectral::prelude::*;
     use serde_xml_rs;
+
+    #[test]
+    #[ignore] // cf. `Host#Address`
+    fn parse_host_with_multiple_addresses() {
+      let s = r##"
+        <host starttime="1531991145" endtime="1531991167">
+          <status state="up" reason="user-set" reason_ttl="0"/>
+          <address addr="192.168.0.1" addrtype="ipv4"/>
+          <address addr="00:11:DD:5D:2E:DD" addrtype="mac" vendor="Synology Incorporated"/>
+          <hostnames>
+            <hostname name="192.168.0.1" type="user"/>
+          </hostnames>
+          <ports>
+            <extraports state="filtered" count="997">
+              <extrareasons reason="no-responses" count="997"/>
+            </extraports>
+            <port protocol="tcp" portid="25">
+              <state state="open" reason="syn-ack" reason_ttl="244"/>
+              <service name="smtp" method="table" conf="3"/>
+            </port>
+            <port protocol="tcp" portid="80">
+              <state state="closed" reason="reset" reason_ttl="244"/>
+              <service name="http" method="table" conf="3"/>
+            </port>
+            <port protocol="tcp" portid="443">
+              <state state="open" reason="syn-ack" reason_ttl="244"/>
+              <service name="https" method="table" conf="3"/>
+            </port>
+          </ports>
+          <times srtt="9740" rttvar="1384" to="100000"/>
+        </host>
+      "##;
+
+      let _host: Host = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
+    }
 
     #[test]
     fn parse_no_dd_okay() {
