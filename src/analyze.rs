@@ -202,6 +202,7 @@ mod tests {
                 ]
             },
             ports: Ports {
+                extra_ports: None,
                 ports: vec![
                     Port {
                         protocol: "tcp".to_owned(),
@@ -269,6 +270,7 @@ mod tests {
                 ]
             },
             ports: Ports {
+                extra_ports: None,
                 ports: vec![
                     Port {
                         protocol: "tcp".to_owned(),

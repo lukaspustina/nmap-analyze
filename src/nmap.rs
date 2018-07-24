@@ -48,8 +48,13 @@ impl FromStr for Run {
 impl SanityCheck for Run {
   fn is_sane(&self) -> Result<(), Error> {
     if !self.has_dd_options() {
-      return Err(NmapError::InvalidNmapFile{ reason: "-dd must be used for nmap".to_owned() }.into());
+      return Err(NmapError::InvalidNmapFile{ reason: "nmap has been run without -dd option; use nmap -dd ..".to_owned() }.into());
     }
+
+    for host in &self.hosts {
+      host.is_sane()?;
+    }
+
     Ok(())
   }
 }
@@ -87,6 +92,25 @@ pub struct Host {
     pub address: Address,
     pub hostnames: HostNames,
     pub ports: Ports,
+}
+
+impl SanityCheck for Host {
+  fn is_sane(&self) -> Result<(), Error> {
+    if self.has_extra_ports() {
+      return Err(
+        NmapError::InvalidNmapFile{
+          reason: "Host has extraports defined; use nmap -dd ...".to_owned(),
+        }.into());
+    }
+
+    Ok(())
+  }
+}
+
+impl Host {
+  fn has_extra_ports(&self) -> bool {
+    self.ports.extra_ports.is_some()
+  }
 }
 
 #[derive(Debug, Deserialize)]
@@ -163,8 +187,18 @@ impl FromStr for HostNameType {
 
 #[derive(Debug, Deserialize)]
 pub struct Ports {
+    #[serde(rename = "extraports")]
+    pub extra_ports: Option<Vec<ExtraPorts>>,
     #[serde(rename = "port")]
     pub ports: Vec<Port>
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExtraPorts {
+    #[serde(deserialize_with = "from_str")]
+    pub state: PortStatus,
+    #[serde(deserialize_with = "from_str")]
+    pub count: u16,
 }
 
 #[derive(Debug, Deserialize)]
@@ -228,6 +262,41 @@ mod tests {
 
     use spectral::prelude::*;
     use serde_xml_rs;
+
+    #[test]
+    fn parse_host_extraports() {
+      let s = r##"
+        <host starttime="1531991145" endtime="1531991167">
+          <status state="up" reason="user-set" reason_ttl="0"/>
+          <address addr="192.168.0.1" addrtype="ipv4"/>
+          <hostnames>
+            <hostname name="192.168.0.1" type="user"/>
+          </hostnames>
+          <ports>
+            <extraports state="filtered" count="997">
+              <extrareasons reason="no-responses" count="997"/>
+            </extraports>
+            <port protocol="tcp" portid="25">
+              <state state="open" reason="syn-ack" reason_ttl="244"/>
+              <service name="smtp" method="table" conf="3"/>
+            </port>
+            <port protocol="tcp" portid="80">
+              <state state="closed" reason="reset" reason_ttl="244"/>
+              <service name="http" method="table" conf="3"/>
+            </port>
+            <port protocol="tcp" portid="443">
+              <state state="open" reason="syn-ack" reason_ttl="244"/>
+              <service name="https" method="table" conf="3"/>
+            </port>
+          </ports>
+          <times srtt="9740" rttvar="1384" to="100000"/>
+        </host>
+      "##;
+
+      let host: Host = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
+
+      assert_that(&host.is_sane()).is_err();
+    }
 
     #[test]
     #[ignore] // cf. `Host#Address`
