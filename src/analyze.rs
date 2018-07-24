@@ -20,29 +20,26 @@ pub enum PortAnalysisResult {
 }
 
 pub struct Analyzer<'a> {
-    scanned_hosts_by_ip: HashMap<&'a IpAddr, &'a nmap::Host>,
-    whitelist_name_by_ip: HashMap<&'a IpAddr, &'a str>,
-    whitelists_by_name: HashMap<&'a str, &'a whitelist::Whitelist>,
+    scanned_host_by_ip: HashMap<&'a IpAddr, &'a nmap::Host>,
+    whitelist_by_ip: HashMap<&'a IpAddr, &'a whitelist::Whitelist>,
 }
 
 impl<'a> Analyzer<'a> {
+    /// TODO: Currently, there is no error handling for an IP that cannot be mapped to a whitelist.
     pub fn new<'b>(nmap_run: &'b Run, mapping: &'b Mapping, whitelists: &'b Whitelists) -> Analyzer<'b> {
-        let scanned_hosts_by_ip = run_to_scanned_hosts_by_ip(&nmap_run);
-        let whitelist_name_by_ip = mapping_to_whitelist_name_by_ip(&mapping);
-        let whitelists_by_name = whitelists_to_whitelist_by_name(&whitelists);
+        let scanned_host_by_ip = run_to_scanned_hosts_by_ip(&nmap_run);
+        let whitelist_by_ip = whitelist_by_ip(&mapping, &whitelists);
 
         Analyzer {
-            scanned_hosts_by_ip,
-            whitelist_name_by_ip,
-            whitelists_by_name,
+            scanned_host_by_ip,
+            whitelist_by_ip,
         }
     }
 
     pub fn analyze(&self) -> Vec<AnalysisResult> {
-        self.scanned_hosts_by_ip.iter().map( |(ip, host)| {
+        self.scanned_host_by_ip.iter().map( |(ip, host)| {
             // TODO Add error for host w/o corresponding whitelist
-            let wl_name = self.whitelist_name_by_ip.get(ip).unwrap();
-            let wl = self.whitelists_by_name.get(wl_name).unwrap();
+            let wl = self.whitelist_by_ip.get(ip).unwrap();
             analyze_host(ip, host, wl)
         }).collect()
     }
@@ -57,13 +54,17 @@ fn run_to_scanned_hosts_by_ip(nmap_run: &Run) -> HashMap<&IpAddr, &nmap::Host> {
     shbi
 }
 
-fn mapping_to_whitelist_name_by_ip(mapping: &Mapping) -> HashMap<&IpAddr, &str> {
-    let mut wnbi = HashMap::new();
+fn whitelist_by_ip<'a>(mapping: &'a Mapping, whitelist: &'a Whitelists) -> HashMap<&'a IpAddr, &'a whitelist::Whitelist> {
+    let wls = whitelists_to_whitelist_by_name(whitelist);
+    let mut wbi = HashMap::new();
+
     for m in mapping {
-        wnbi.insert(&m.ip, m.whitelist.as_ref());
+        let key: &str = &m.whitelist;
+        let wl = wls.get(key).unwrap(); // TODO: Error handling
+        wbi.insert(&m.ip, *wl);
     }
 
-    wnbi
+    wbi
 }
 
 fn whitelists_to_whitelist_by_name(whitelists: &Whitelists) -> HashMap<&str, &whitelist::Whitelist> {
@@ -133,19 +134,6 @@ mod tests {
     }
 
     #[test]
-    fn mapping_to_whitelist_name_by_ip_okay() {
-        let mapping = mapping_data();
-
-        let wnbi: HashMap<_, _> = mapping_to_whitelist_name_by_ip(&mapping);
-
-        assert_eq!(wnbi.len(), 2);
-        let host1_ip: IpAddr = "192.168.0.1".parse().unwrap();
-        assert_eq!(wnbi.get(&host1_ip), Some(&"Group A"));
-        let host3_ip: IpAddr = "192.168.0.3".parse().unwrap();
-        assert_eq!(wnbi.get(&host3_ip), Some(&"Group B"));
-    }
-
-    #[test]
     fn whitelists_to_whitelist_by_name_okay() {
         let whitelists = whitelists_data();
 
@@ -154,6 +142,25 @@ mod tests {
         assert_eq!(wbn.len(), 2);
         assert!(wbn.get("Group A").is_some());
         assert!(wbn.get("Group B").is_some());
+    }
+
+
+    #[test]
+    fn whitelist_by_ip_okay() {
+        let mapping = mapping_data();
+        let whitelists = whitelists_data();
+
+        let wbi: HashMap<_, _> = whitelist_by_ip(&mapping, &whitelists);
+
+        assert_eq!(wbi.len(), 2);
+
+        let host1_ip: IpAddr = "192.168.0.1".parse().unwrap();
+        assert!(wbi.get(&host1_ip).is_some());
+        assert_eq!(wbi.get(&host1_ip).unwrap().name, "Group A");
+
+        let host3_ip: IpAddr = "192.168.0.3".parse().unwrap();
+        assert!(wbi.get(&host3_ip).is_some());
+        assert_eq!(wbi.get(&host3_ip).unwrap().name, "Group B");
     }
 
     #[test]
