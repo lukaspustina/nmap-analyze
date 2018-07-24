@@ -25,7 +25,7 @@ fn from_str<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     T::from_str(&s).map_err(de::Error::custom)
 }
 
-trait SanityCheck {
+pub trait SanityCheck {
     fn is_sane(&self) -> Result<(), Error>;
 }
 
@@ -33,4 +33,6 @@ pub mod analyze;
 pub mod mapping;
 pub mod nmap;
 pub mod whitelist;
+
+pub use nmap::Run;
 

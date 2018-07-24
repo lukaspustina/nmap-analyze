@@ -1,6 +1,7 @@
 use super::{SanityCheck, from_str};
 
-use failure::Error;
+use failure::{Error, ResultExt};
+use serde_xml_rs;
 use std::net::IpAddr;
 use std::str::FromStr;
 
@@ -32,6 +33,19 @@ pub struct Run {
     pub start: u64,
     #[serde(rename = "host")]
     pub hosts: Vec<Host>
+}
+
+impl FromStr for Run {
+    type Err = NmapError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+      let run: Run = serde_xml_rs::deserialize(s.as_bytes())
+        .map_err(|e| NmapError::InvalidNmapFile{
+          reason: format!("could not parse file, because {}", e)
+        })?;
+
+      Ok(run)
+    }
 }
 
 impl SanityCheck for Run {
