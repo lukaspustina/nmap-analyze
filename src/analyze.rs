@@ -5,18 +5,35 @@ use portspec::{self, PortSpecs};
 use std::collections::BTreeMap;
 use std::net::IpAddr;
 
-#[derive(Debug, PartialEq)]
+static IMPLICIT_CLOSED_PORTSPEC: &portspec::Port = &portspec::Port{ id: 0, state: portspec::PortState::Closed };
+
+#[derive(Debug, Serialize)]
+pub struct Analysis<'a> {
+    ip: &'a IpAddr,
+    result: AnalysisResult,
+    port_results: Vec<PortAnalysisResult>,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
 pub enum AnalysisResult {
     Pass,
     Fail,
     Error,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub enum PortAnalysisResult {
     Pass(u16),
-    Fail(u16),
+    Fail(u16, PortAnalysisReason),
+    NotScanned(u16),
     Unknown(u16),
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+pub enum PortAnalysisReason {
+    OpenButClosed, // Should have been open, but was found to be closed
+    ClosedButOpen, // Should have been cloed, but was found to be open
+    Unknown,
 }
 
 pub struct Analyzer<'a> {
@@ -36,7 +53,7 @@ impl<'a> Analyzer<'a> {
         }
     }
 
-    pub fn analyze(&self) -> Vec<AnalysisResult> {
+    pub fn analyze(&self) -> Vec<Analysis> {
         self.scanned_host_by_ip
             .iter()
             .map( |(ip, host)| {
@@ -78,22 +95,39 @@ fn portspecs_to_portspec_by_name(portspecs: &PortSpecs) -> BTreeMap<&str, &ports
     wbn
 }
 
-fn analyze_host(ip: &IpAddr, host: &nmap::Host, portspec: &portspec::PortSpec) -> AnalysisResult {
+/// This methods analyses the nmap port scanning results for a specific host. It uses the portspec of the group the hosts is mapped to.
+///
+/// First, we must check that the explicitly specified port specs are met, i.e., if the specified ports
+/// are closed or open respectively. This step may have three different results for each specified
+/// port: 1. The port state is as expected, 2. the port state it _not_ as expected, and 3. the port
+/// has not be scanned.
+///
+/// Second, we must check that all other scanned ports are closed which is implicitly specified if
+/// not explicitly required to be in state open.
+///
+/// The analysis result is determined like this:
+/// - If all ports meet the explicit and implicit expectations: Pass
+/// - If an explicitly specified port has not been scaned: Fail
+/// - If one or more ports do not meet the expectations: Fail
+fn analyze_host<'a>(ip: &'a IpAddr, host: &nmap::Host, portspec: &portspec::PortSpec) -> Analysis<'a> {
     let ports: Vec<PortAnalysisResult> = host.ports.ports.iter().map( |port| {
         // TODO Handle case where port is not found: Has it been scanned? -> extraports
-        let wl_port = if let Some(wp) = portspec.ports.iter().find(|x| x.id== port.portid) {
+
+        // if port is not explicitly specified then we implicitly set the expected state to closed
+        let wl_port = if let Some(wp) = portspec.ports.iter().find(|x| x.id == port.portid) {
             wp
         } else {
-            let par = PortAnalysisResult::Unknown(port.portid);
-            println!("Result for host {}, port {} is {:?}",  ip, port.portid, par);
-            return par;
+            &IMPLICIT_CLOSED_PORTSPEC
         };
         let par = match wl_port {
             portspec::Port { id: _, state: portspec::PortState::Open }
                 if port.state.state == nmap::PortStatus::Open => PortAnalysisResult::Pass(port.portid),
+            portspec::Port { id: _, state: portspec::PortState::Open }
+                => PortAnalysisResult::Fail(port.portid, PortAnalysisReason::OpenButClosed),
             portspec::Port { id: _, state: portspec::PortState::Closed }
                 if port.state.state != nmap::PortStatus::Open => PortAnalysisResult::Pass(port.portid),
-            _ => PortAnalysisResult::Fail(port.portid),
+            portspec::Port { id: _, state: portspec::PortState::Closed }
+                => PortAnalysisResult::Fail(port.portid, PortAnalysisReason::ClosedButOpen),
         };
         println!("Result for host {}, port {} is {:?}",  ip, port.portid, par);
         par
@@ -105,10 +139,16 @@ fn analyze_host(ip: &IpAddr, host: &nmap::Host, portspec: &portspec::PortSpec) -
         PortAnalysisResult::Pass(_) => false,
         _ => true,
     }).count();
-    if failed > 0 {
+    let result = if failed > 0 {
         AnalysisResult::Fail
     } else {
         AnalysisResult::Pass
+    };
+
+    Analysis {
+        ip,
+        result,
+        port_results: ports,
     }
 }
 
@@ -121,6 +161,370 @@ mod tests {
     use portspec;
 
     use spectral::prelude::*;
+
+    #[test]
+    fn analyze_host_explicit_and_implicit_ports_okay() {
+        let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
+        let portspec = portspec::PortSpec {
+            name: "Group A".to_owned(),
+            ports: vec![
+                portspec::Port {
+                    id: 22,
+                    state: portspec::PortState::Closed
+                },
+                portspec::Port {
+                    id: 25,
+                    state: portspec::PortState::Open
+                }
+            ]
+        };
+        use nmap::*;
+        let host = Host {
+            starttime: 1531991145,
+            endtime: 1531991167,
+            status: HostStatus {
+                state: HostState::Up,
+                reason: "user-set".to_owned(),
+                reason_ttl: 0
+            },
+            address: Address {
+                addr: ip.clone(),
+            },
+            hostnames: HostNames {
+                hostnames: vec![
+                    HostName {
+                        name: format!("{}", ip),
+                        typ: HostNameType::User
+                    }
+                ]
+            },
+            ports: Ports {
+                extra_ports: None,
+                ports: vec![
+                    Port {
+                        protocol: "tcp".to_owned(),
+                        portid: 22,
+                        state: PortState {
+                            state: PortStatus::Closed,
+                            reason: "reset".to_owned(),
+                            reason_ttl: 244
+                        },
+                        service: PortService {
+                            name: "ssh".to_owned(),
+                            method: "table".to_owned(),
+                            conf: 3
+                        }
+                    },
+                    Port {
+                        protocol: "tcp".to_owned(),
+                        portid: 25,
+                        state: PortState {
+                            state: PortStatus::Open,
+                            reason: "syn-ack".to_owned(),
+                            reason_ttl: 244
+                        },
+                        service: PortService {
+                            name: "smtp".to_owned(),
+                            method: "table".to_owned(),
+                            conf: 3
+                        }
+                    },
+                    Port {
+                        protocol: "tcp".to_owned(),
+                        portid: 443,
+                        state: PortState {
+                            state: PortStatus::Closed,
+                            reason: "reset".to_owned(),
+                            reason_ttl: 244
+                        },
+                        service: PortService {
+                            name: "https".to_owned(),
+                            method: "table".to_owned(),
+                            conf: 3
+                        }
+                    }
+                ]
+            }
+        };
+
+        let analysis = analyze_host(&ip, &host, &portspec);
+        println!("Analysis: {:?}", analysis);
+
+        assert_that!(&analysis.result).is_equal_to(AnalysisResult::Pass);
+    }
+
+    #[test]
+    fn analyze_host_explicit_port_fail() {
+        let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
+        let portspec = portspec::PortSpec {
+            name: "Group A".to_owned(),
+            ports: vec![
+                portspec::Port {
+                    id: 22,
+                    state: portspec::PortState::Closed
+                },
+                portspec::Port {
+                    id: 25,
+                    state: portspec::PortState::Open
+                }
+            ]
+        };
+        use nmap::*;
+        let host = Host {
+            starttime: 1531991145,
+            endtime: 1531991167,
+            status: HostStatus {
+                state: HostState::Up,
+                reason: "user-set".to_owned(),
+                reason_ttl: 0
+            },
+            address: Address {
+                addr: ip.clone(),
+            },
+            hostnames: HostNames {
+                hostnames: vec![
+                    HostName {
+                        name: format!("{}", ip),
+                        typ: HostNameType::User
+                    }
+                ]
+            },
+            ports: Ports {
+                extra_ports: None,
+                ports: vec![
+                    Port {
+                        protocol: "tcp".to_owned(),
+                        portid: 22,
+                        state: PortState {
+                            state: PortStatus::Closed,
+                            reason: "reset".to_owned(),
+                            reason_ttl: 244
+                        },
+                        service: PortService {
+                            name: "ssh".to_owned(),
+                            method: "table".to_owned(),
+                            conf: 3
+                        }
+                    },
+                    Port {
+                        protocol: "tcp".to_owned(),
+                        portid: 25,
+                        state: PortState {
+                            state: PortStatus::Closed,
+                            reason: "reset".to_owned(),
+                            reason_ttl: 244
+                        },
+                        service: PortService {
+                            name: "smtp".to_owned(),
+                            method: "table".to_owned(),
+                            conf: 3
+                        }
+                    },
+                    Port {
+                        protocol: "tcp".to_owned(),
+                        portid: 443,
+                        state: PortState {
+                            state: PortStatus::Closed,
+                            reason: "reset".to_owned(),
+                            reason_ttl: 244
+                        },
+                        service: PortService {
+                            name: "https".to_owned(),
+                            method: "table".to_owned(),
+                            conf: 3
+                        }
+                    }
+                ]
+            }
+        };
+
+        let analysis = analyze_host(&ip, &host, &portspec);
+        println!("Analysis: {:?}", analysis);
+
+        assert_that!(&analysis.result).is_equal_to(AnalysisResult::Fail);
+    }
+
+    #[test]
+    fn analyze_host_explicit_port_not_scanned() {
+        let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
+        let portspec = portspec::PortSpec {
+            name: "Group A".to_owned(),
+            ports: vec![
+                portspec::Port {
+                    id: 22,
+                    state: portspec::PortState::Closed
+                },
+                portspec::Port {
+                    id: 25,
+                    state: portspec::PortState::Open
+                }
+            ]
+        };
+        use nmap::*;
+        let host = Host {
+            starttime: 1531991145,
+            endtime: 1531991167,
+            status: HostStatus {
+                state: HostState::Up,
+                reason: "user-set".to_owned(),
+                reason_ttl: 0
+            },
+            address: Address {
+                addr: ip.clone(),
+            },
+            hostnames: HostNames {
+                hostnames: vec![
+                    HostName {
+                        name: format!("{}", ip),
+                        typ: HostNameType::User
+                    }
+                ]
+            },
+            ports: Ports {
+                extra_ports: None,
+                ports: vec![
+                    Port {
+                        protocol: "tcp".to_owned(),
+                        portid: 22,
+                        state: PortState {
+                            state: PortStatus::Closed,
+                            reason: "reset".to_owned(),
+                            reason_ttl: 244
+                        },
+                        service: PortService {
+                            name: "ssh".to_owned(),
+                            method: "table".to_owned(),
+                            conf: 3
+                        }
+                    },
+                    Port {
+                        protocol: "tcp".to_owned(),
+                        portid: 443,
+                        state: PortState {
+                            state: PortStatus::Closed,
+                            reason: "reset".to_owned(),
+                            reason_ttl: 244
+                        },
+                        service: PortService {
+                            name: "https".to_owned(),
+                            method: "table".to_owned(),
+                            conf: 3
+                        }
+                    }
+                ]
+            }
+        };
+
+        let analysis = analyze_host(&ip, &host, &portspec);
+        println!("Analysis: {:?}", analysis);
+
+        asserting("Scan fails because an explicit port has not been scanned")
+            .that(&analysis.result).is_equal_to(AnalysisResult::Fail);
+
+        let ports = &analysis.port_results;
+        let unscanned: Vec<_> = ports.iter().filter(|x| *x == &PortAnalysisResult::NotScanned(25u16)).collect();
+        asserting("Port 25 has not been scanned").that(&unscanned).has_length(1);
+    }
+
+    #[test]
+    #[ignore]
+    fn analyze_host_implicit_port_open() {
+        let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
+        let portspec = portspec::PortSpec {
+            name: "Group A".to_owned(),
+            ports: vec![
+                portspec::Port {
+                    id: 22,
+                    state: portspec::PortState::Closed
+                },
+                portspec::Port {
+                    id: 25,
+                    state: portspec::PortState::Open
+                }
+            ]
+        };
+        use nmap::*;
+        let host = Host {
+            starttime: 1531991145,
+            endtime: 1531991167,
+            status: HostStatus {
+                state: HostState::Up,
+                reason: "user-set".to_owned(),
+                reason_ttl: 0
+            },
+            address: Address {
+                addr: ip.clone(),
+            },
+            hostnames: HostNames {
+                hostnames: vec![
+                    HostName {
+                        name: format!("{}", ip),
+                        typ: HostNameType::User
+                    }
+                ]
+            },
+            ports: Ports {
+                extra_ports: None,
+                ports: vec![
+                    Port {
+                        protocol: "tcp".to_owned(),
+                        portid: 22,
+                        state: PortState {
+                            state: PortStatus::Closed,
+                            reason: "reset".to_owned(),
+                            reason_ttl: 244
+                        },
+                        service: PortService {
+                            name: "ssh".to_owned(),
+                            method: "table".to_owned(),
+                            conf: 3
+                        }
+                    },
+                    Port {
+                        protocol: "tcp".to_owned(),
+                        portid: 25,
+                        state: PortState {
+                            state: PortStatus::Open,
+                            reason: "syn-ack".to_owned(),
+                            reason_ttl: 244
+                        },
+                        service: PortService {
+                            name: "smtp".to_owned(),
+                            method: "table".to_owned(),
+                            conf: 3
+                        }
+                    },
+                    Port {
+                        protocol: "tcp".to_owned(),
+                        portid: 443,
+                        state: PortState {
+                            state: PortStatus::Open,
+                            reason: "syn-ack".to_owned(),
+                            reason_ttl: 244
+                        },
+                        service: PortService {
+                            name: "https".to_owned(),
+                            method: "table".to_owned(),
+                            conf: 3
+                        }
+                    }
+                ]
+            }
+        };
+
+        let analysis = analyze_host(&ip, &host, &portspec);
+        println!("Analysis: {:?}", analysis);
+
+        asserting("Scan fails because an implicit port is open")
+            .that(&analysis.result).is_equal_to(AnalysisResult::Fail);
+
+        let ports = &analysis.port_results;
+        let unscanned: Vec<_> = ports
+            .iter()
+            .filter(|x| *x == &PortAnalysisResult::Fail(443u16, PortAnalysisReason::ClosedButOpen))
+            .collect();
+        asserting("Port 443 is open").that(&unscanned).has_length(1);
+    }
 
     #[test]
     fn run_to_scanned_hosts_by_ip_okay() {
@@ -175,8 +579,12 @@ mod tests {
         let analysis_results = analyzer.analyze();
 
         assert_that!(&analysis_results).has_length(2);
-        assert_that!(&analysis_results.get(0)).is_some().is_equal_to(&AnalysisResult::Fail);
-        assert_that!(&analysis_results.get(1)).is_some().is_equal_to(&AnalysisResult::Pass);
+        let res0 = analysis_results.get(0);
+        assert_that!(&res0).is_some();
+        assert_that!(&res0.unwrap().result).is_equal_to(AnalysisResult::Fail);
+        let res1 = analysis_results.get(1);
+        assert_that!(&res1).is_some();
+        assert_that!(&res1.unwrap().result).is_equal_to(AnalysisResult::Pass);
     }
 
     fn nmap_data() -> nmap::Run {
