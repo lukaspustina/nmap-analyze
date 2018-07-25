@@ -1,4 +1,4 @@
-use super::{SanityCheck, from_str};
+use super::{from_str, SanityCheck};
 
 use failure::Error;
 use serde_xml_rs;
@@ -8,21 +8,13 @@ use std::str::FromStr;
 #[derive(Debug, Fail)]
 pub enum NmapError {
     #[fail(display = "invalid nmap file because {}", reason)]
-    InvalidNmapFile {
-        reason: String,
-    },
+    InvalidNmapFile { reason: String },
     #[fail(display = "invalid host state: {}", invalid)]
-    InvalidHostState {
-        invalid: String,
-    },
+    InvalidHostState { invalid: String },
     #[fail(display = "invalid hostname type: {}", invalid)]
-    InvalidHostNameType {
-        invalid: String,
-    },
+    InvalidHostNameType { invalid: String },
     #[fail(display = "invalid port status: {}", invalid)]
-    InvalidPortStatus {
-        invalid: String,
-    },
+    InvalidPortStatus { invalid: String },
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,41 +24,43 @@ pub struct Run {
     #[serde(deserialize_with = "from_str")]
     pub start: u64,
     #[serde(rename = "host")]
-    pub hosts: Vec<Host>
+    pub hosts: Vec<Host>,
 }
 
 impl FromStr for Run {
     type Err = NmapError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-      let run: Run = Run::from_bytes(s.as_bytes())?;
+        let run: Run = Run::from_bytes(s.as_bytes())?;
 
-      Ok(run)
+        Ok(run)
     }
 }
 
 impl SanityCheck for Run {
-  fn is_sane(&self) -> Result<(), Error> {
-    if !self.has_dd_options() {
-      return Err(NmapError::InvalidNmapFile{ reason: "nmap has been run without -dd option; use nmap -dd ..".to_owned() }.into());
-    }
+    fn is_sane(&self) -> Result<(), Error> {
+        if !self.has_dd_options() {
+            return Err(NmapError::InvalidNmapFile {
+                reason: "nmap has been run without -dd option; use nmap -dd ..".to_owned(),
+            }.into());
+        }
 
-    for host in &self.hosts {
-      host.is_sane()?;
-    }
+        for host in &self.hosts {
+            host.is_sane()?;
+        }
 
-    Ok(())
-  }
+        Ok(())
+    }
 }
 
 impl Run {
-  fn has_dd_options(&self) -> bool {
-    self.args.contains("-dd")
-  }
+    fn has_dd_options(&self) -> bool {
+        self.args.contains("-dd")
+    }
 
-  fn from_bytes(buffer: &[u8]) -> Result<Self, NmapError> {
-    let run = serde_xml_rs::deserialize(buffer);
-    match run {
+    fn from_bytes(buffer: &[u8]) -> Result<Self, NmapError> {
+        let run = serde_xml_rs::deserialize(buffer);
+        match run {
       Ok(x) => Ok(x),
       // cf. `Host#Address`
       Err(serde_xml_rs::Error::Custom(ref s)) if s == "duplicate field `address`" => {
@@ -76,7 +70,7 @@ impl Run {
       Err(e) => Err(NmapError::InvalidNmapFile{
           reason: format!("could not parse file, because {}", e) }),
     }
-  }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,22 +89,21 @@ pub struct Host {
 }
 
 impl SanityCheck for Host {
-  fn is_sane(&self) -> Result<(), Error> {
-    if self.has_extra_ports() {
-      return Err(
-        NmapError::InvalidNmapFile{
-          reason: "Host has extraports defined; use nmap -dd ...".to_owned(),
-        }.into());
-    }
+    fn is_sane(&self) -> Result<(), Error> {
+        if self.has_extra_ports() {
+            return Err(NmapError::InvalidNmapFile {
+                reason: "Host has extraports defined; use nmap -dd ...".to_owned(),
+            }.into());
+        }
 
-    Ok(())
-  }
+        Ok(())
+    }
 }
 
 impl Host {
-  fn has_extra_ports(&self) -> bool {
-    self.ports.extra_ports.is_some()
-  }
+    fn has_extra_ports(&self) -> bool {
+        self.ports.extra_ports.is_some()
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -125,16 +118,16 @@ pub struct HostStatus {
     pub state: HostState,
     pub reason: String,
     #[serde(deserialize_with = "from_str")]
-    pub reason_ttl: usize
+    pub reason_ttl: usize,
 }
 
 #[derive(Debug, Deserialize)]
 // cf. nmap.dtd
 pub enum HostState {
-  Up,
-  Down,
-  Unknown,
-  Skipped,
+    Up,
+    Down,
+    Unknown,
+    Skipped,
 }
 
 impl FromStr for HostState {
@@ -147,7 +140,7 @@ impl FromStr for HostState {
             "down" => Ok(HostState::Down),
             "unknown" => Ok(HostState::Unknown),
             "skipped" => Ok(HostState::Skipped),
-            _ => Err(NmapError::InvalidHostState{ invalid: s })
+            _ => Err(NmapError::InvalidHostState { invalid: s }),
         }
     }
 }
@@ -168,8 +161,8 @@ pub struct HostName {
 #[derive(Debug, Deserialize)]
 // cf. nmap.dtd
 pub enum HostNameType {
-  User,
-  Ptr,
+    User,
+    Ptr,
 }
 
 impl FromStr for HostNameType {
@@ -180,7 +173,7 @@ impl FromStr for HostNameType {
         match s.as_ref() {
             "user" => Ok(HostNameType::User),
             "ptr" => Ok(HostNameType::Ptr),
-            _ => Err(NmapError::InvalidHostNameType{ invalid: s })
+            _ => Err(NmapError::InvalidHostNameType { invalid: s }),
         }
     }
 }
@@ -190,7 +183,7 @@ pub struct Ports {
     #[serde(rename = "extraports")]
     pub extra_ports: Option<Vec<ExtraPorts>>,
     #[serde(rename = "port")]
-    pub ports: Vec<Port>
+    pub ports: Vec<Port>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -217,18 +210,18 @@ pub struct PortState {
     pub state: PortStatus,
     pub reason: String,
     #[serde(deserialize_with = "from_str")]
-    pub reason_ttl: usize
+    pub reason_ttl: usize,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
 // cf. nmap.dtd
 pub enum PortStatus {
-  Open,
-  Filtered,
-  Unfiltered,
-  Closed,
-  OpenFiltered,
-  CloseFiltered,
+    Open,
+    Filtered,
+    Unfiltered,
+    Closed,
+    OpenFiltered,
+    CloseFiltered,
 }
 
 impl FromStr for PortStatus {
@@ -243,7 +236,7 @@ impl FromStr for PortStatus {
             "closed" => Ok(PortStatus::Closed),
             "open|filtered" => Ok(PortStatus::OpenFiltered),
             "close|filtered" => Ok(PortStatus::CloseFiltered),
-            _ => Err(NmapError::InvalidPortStatus { invalid: s })
+            _ => Err(NmapError::InvalidPortStatus { invalid: s }),
         }
     }
 }
@@ -253,19 +246,19 @@ pub struct PortService {
     pub name: String,
     pub method: String,
     #[serde(deserialize_with = "from_str")]
-    pub conf: usize
+    pub conf: usize,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use spectral::prelude::*;
     use serde_xml_rs;
+    use spectral::prelude::*;
 
     #[test]
     fn parse_host_extraports() {
-      let s = r##"
+        let s = r##"
         <host starttime="1531991145" endtime="1531991167">
           <status state="up" reason="user-set" reason_ttl="0"/>
           <address addr="192.168.0.1" addrtype="ipv4"/>
@@ -293,15 +286,15 @@ mod tests {
         </host>
       "##;
 
-      let host: Host = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
+        let host: Host = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
 
-      assert_that(&host.is_sane()).is_err();
+        assert_that(&host.is_sane()).is_err();
     }
 
     #[test]
     #[ignore] // cf. `Host#Address`
     fn parse_host_with_multiple_addresses() {
-      let s = r##"
+        let s = r##"
         <host starttime="1531991145" endtime="1531991167">
           <status state="up" reason="user-set" reason_ttl="0"/>
           <address addr="192.168.0.1" addrtype="ipv4"/>
@@ -330,22 +323,22 @@ mod tests {
         </host>
       "##;
 
-      let _host: Host = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
+        let _host: Host = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
     }
 
     #[test]
     fn parse_no_dd_okay() {
-      let s = NMAP_NO_DD_DATA;
-      let nmaprun: Run = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
-      println!("{:#?}", nmaprun);
+        let s = NMAP_NO_DD_DATA;
+        let nmaprun: Run = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
+        println!("{:#?}", nmaprun);
     }
 
     #[test]
     fn no_dd_data_is_insane() {
-      let s = NMAP_NO_DD_DATA;
-      let nmaprun: Run = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
+        let s = NMAP_NO_DD_DATA;
+        let nmaprun: Run = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
 
-      assert_that(&nmaprun.is_sane()).is_err();
+        assert_that(&nmaprun.is_sane()).is_err();
     }
 
     const NMAP_NO_DD_DATA: &str = r##"

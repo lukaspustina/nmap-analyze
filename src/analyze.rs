@@ -6,7 +6,10 @@ use std::collections::{BTreeMap, HashSet};
 use std::iter::FromIterator;
 use std::net::IpAddr;
 
-static IMPLICIT_CLOSED_PORTSPEC: &portspec::Port = &portspec::Port{ id: 0, state: portspec::PortState::Closed };
+static IMPLICIT_CLOSED_PORTSPEC: &portspec::Port = &portspec::Port {
+    id: 0,
+    state: portspec::PortState::Closed,
+};
 
 #[derive(Debug, Serialize)]
 pub struct Analysis<'a> {
@@ -44,7 +47,11 @@ pub struct Analyzer<'a> {
 
 impl<'a> Analyzer<'a> {
     /// TODO: Currently, there is no error handling for an IP that cannot be mapped to a portspec.
-    pub fn new<'b>(nmap_run: &'b Run, mapping: &'b Mapping, portspecs: &'b PortSpecs) -> Analyzer<'b> {
+    pub fn new<'b>(
+        nmap_run: &'b Run,
+        mapping: &'b Mapping,
+        portspecs: &'b PortSpecs,
+    ) -> Analyzer<'b> {
         let scanned_host_by_ip = run_to_scanned_hosts_by_ip(&nmap_run);
         let portspec_by_ip = portspec_by_ip(&mapping, &portspecs);
 
@@ -57,11 +64,12 @@ impl<'a> Analyzer<'a> {
     pub fn analyze(&self) -> Vec<Analysis> {
         self.scanned_host_by_ip
             .iter()
-            .map( |(ip, host)| {
-            // TODO Add error for host w/o corresponding portspec
-            let wl = self.portspec_by_ip.get(ip).unwrap();
-            analyze_host(ip, host, wl)
-        }).collect()
+            .map(|(ip, host)| {
+                // TODO Add error for host w/o corresponding portspec
+                let wl = self.portspec_by_ip.get(ip).unwrap();
+                analyze_host(ip, host, wl)
+            })
+            .collect()
     }
 }
 
@@ -74,7 +82,10 @@ fn run_to_scanned_hosts_by_ip(nmap_run: &Run) -> BTreeMap<&IpAddr, &nmap::Host> 
     shbi
 }
 
-fn portspec_by_ip<'a>(mapping: &'a Mapping, portspec: &'a PortSpecs) -> BTreeMap<&'a IpAddr, &'a portspec::PortSpec> {
+fn portspec_by_ip<'a>(
+    mapping: &'a Mapping,
+    portspec: &'a PortSpecs,
+) -> BTreeMap<&'a IpAddr, &'a portspec::PortSpec> {
     let wls = portspecs_to_portspec_by_name(portspec);
     let mut wbi = BTreeMap::new();
 
@@ -110,42 +121,75 @@ fn portspecs_to_portspec_by_name(portspecs: &PortSpecs) -> BTreeMap<&str, &ports
 /// - If all ports meet the explicit and implicit expectations: Pass
 /// - If an explicitly specified port has not been scaned: Fail
 /// - If one or more ports do not meet the expectations: Fail
-fn analyze_host<'a>(ip: &'a IpAddr, host: &nmap::Host, portspec: &portspec::PortSpec) -> Analysis<'a> {
-    let mut unscanned_ps_ports: HashSet<u16> = HashSet::from_iter(portspec.ports.iter().map(|x| x.id));
+fn analyze_host<'a>(
+    ip: &'a IpAddr,
+    host: &nmap::Host,
+    portspec: &portspec::PortSpec,
+) -> Analysis<'a> {
+    let mut unscanned_ps_ports: HashSet<u16> =
+        HashSet::from_iter(portspec.ports.iter().map(|x| x.id));
 
-    let mut ports: Vec<PortAnalysisResult> = host.ports.ports.iter().map( |port| {
-        // Remove the current port from the unscanned, explicitly specified ports.
-        let _ = unscanned_ps_ports.remove(&port.portid);
+    let mut ports: Vec<PortAnalysisResult> = host
+        .ports
+        .ports
+        .iter()
+        .map(|port| {
+            // Remove the current port from the unscanned, explicitly specified ports.
+            let _ = unscanned_ps_ports.remove(&port.portid);
 
-        // if port is not explicitly specified then we implicitly set the expected state to closed
-        let ps_port = if let Some(p) = portspec.ports.iter().find(|x| x.id == port.portid) {
-            p
-        } else {
-            &IMPLICIT_CLOSED_PORTSPEC
-        };
-        let par = match ps_port {
-            portspec::Port { state: portspec::PortState::Open, .. }
-                if port.state.state == nmap::PortStatus::Open => PortAnalysisResult::Pass(port.portid),
-            portspec::Port { state: portspec::PortState::Open, .. }
-                => PortAnalysisResult::Fail(port.portid, PortAnalysisReason::OpenButClosed),
-            portspec::Port { state: portspec::PortState::Closed, .. }
-                if port.state.state != nmap::PortStatus::Open => PortAnalysisResult::Pass(port.portid),
-            portspec::Port { state: portspec::PortState::Closed, .. }
-                => PortAnalysisResult::Fail(port.portid, PortAnalysisReason::ClosedButOpen),
-        };
-        println!("Result for host {}, port {} is {:?}",  ip, port.portid, par);
-        par
-    }).collect();
+            // if port is not explicitly specified then we implicitly set the expected state to closed
+            let ps_port = if let Some(p) = portspec.ports.iter().find(|x| x.id == port.portid) {
+                p
+            } else {
+                &IMPLICIT_CLOSED_PORTSPEC
+            };
+            let par = match ps_port {
+                portspec::Port {
+                    state: portspec::PortState::Open,
+                    ..
+                }
+                    if port.state.state == nmap::PortStatus::Open =>
+                {
+                    PortAnalysisResult::Pass(port.portid)
+                }
+                portspec::Port {
+                    state: portspec::PortState::Open,
+                    ..
+                } => PortAnalysisResult::Fail(port.portid, PortAnalysisReason::OpenButClosed),
+                portspec::Port {
+                    state: portspec::PortState::Closed,
+                    ..
+                }
+                    if port.state.state != nmap::PortStatus::Open =>
+                {
+                    PortAnalysisResult::Pass(port.portid)
+                }
+                portspec::Port {
+                    state: portspec::PortState::Closed,
+                    ..
+                } => PortAnalysisResult::Fail(port.portid, PortAnalysisReason::ClosedButOpen),
+            };
+            println!("Result for host {}, port {} is {:?}", ip, port.portid, par);
+            par
+        })
+        .collect();
 
     // Add all (remaning) unscanned, explicitly specified ports to the result as "NotScanned"
-    ports.extend(unscanned_ps_ports.iter().map(|x| PortAnalysisResult::NotScanned(*x)));
+    ports.extend(
+        unscanned_ps_ports
+            .iter()
+            .map(|x| PortAnalysisResult::NotScanned(*x)),
+    );
 
     println!("Results for host {} is {:?}", ip, ports);
 
-    let failed = ports.iter().filter(|x| match x {
-        PortAnalysisResult::Pass(_) => false,
-        _ => true,
-    }).count();
+    let failed = ports
+        .iter()
+        .filter(|x| match x {
+            PortAnalysisResult::Pass(_) => false,
+            _ => true,
+        })
+        .count();
     let result = if failed > 0 {
         AnalysisResult::Fail
     } else {
@@ -163,8 +207,8 @@ fn analyze_host<'a>(ip: &'a IpAddr, host: &nmap::Host, portspec: &portspec::Port
 mod tests {
     use super::*;
 
-    use nmap;
     use mapping;
+    use nmap;
     use portspec;
 
     use spectral::prelude::*;
@@ -177,13 +221,13 @@ mod tests {
             ports: vec![
                 portspec::Port {
                     id: 22,
-                    state: portspec::PortState::Closed
+                    state: portspec::PortState::Closed,
                 },
                 portspec::Port {
                     id: 25,
-                    state: portspec::PortState::Open
-                }
-            ]
+                    state: portspec::PortState::Open,
+                },
+            ],
         };
         use nmap::*;
         let host = Host {
@@ -192,18 +236,14 @@ mod tests {
             status: HostStatus {
                 state: HostState::Up,
                 reason: "user-set".to_owned(),
-                reason_ttl: 0
+                reason_ttl: 0,
             },
-            address: Address {
-                addr: ip.clone(),
-            },
+            address: Address { addr: ip.clone() },
             hostnames: HostNames {
-                hostnames: vec![
-                    HostName {
-                        name: format!("{}", ip),
-                        typ: HostNameType::User
-                    }
-                ]
+                hostnames: vec![HostName {
+                    name: format!("{}", ip),
+                    typ: HostNameType::User,
+                }],
             },
             ports: Ports {
                 extra_ports: None,
@@ -214,13 +254,13 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "ssh".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
+                            conf: 3,
+                        },
                     },
                     Port {
                         protocol: "tcp".to_owned(),
@@ -228,13 +268,13 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "syn-ack".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "smtp".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
+                            conf: 3,
+                        },
                     },
                     Port {
                         protocol: "tcp".to_owned(),
@@ -242,16 +282,16 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "https".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
-                    }
-                ]
-            }
+                            conf: 3,
+                        },
+                    },
+                ],
+            },
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
@@ -268,13 +308,13 @@ mod tests {
             ports: vec![
                 portspec::Port {
                     id: 22,
-                    state: portspec::PortState::Closed
+                    state: portspec::PortState::Closed,
                 },
                 portspec::Port {
                     id: 25,
-                    state: portspec::PortState::Open
-                }
-            ]
+                    state: portspec::PortState::Open,
+                },
+            ],
         };
         use nmap::*;
         let host = Host {
@@ -283,18 +323,14 @@ mod tests {
             status: HostStatus {
                 state: HostState::Up,
                 reason: "user-set".to_owned(),
-                reason_ttl: 0
+                reason_ttl: 0,
             },
-            address: Address {
-                addr: ip.clone(),
-            },
+            address: Address { addr: ip.clone() },
             hostnames: HostNames {
-                hostnames: vec![
-                    HostName {
-                        name: format!("{}", ip),
-                        typ: HostNameType::User
-                    }
-                ]
+                hostnames: vec![HostName {
+                    name: format!("{}", ip),
+                    typ: HostNameType::User,
+                }],
             },
             ports: Ports {
                 extra_ports: None,
@@ -305,13 +341,13 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "ssh".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
+                            conf: 3,
+                        },
                     },
                     Port {
                         protocol: "tcp".to_owned(),
@@ -319,13 +355,13 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "smtp".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
+                            conf: 3,
+                        },
                     },
                     Port {
                         protocol: "tcp".to_owned(),
@@ -333,16 +369,16 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "https".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
-                    }
-                ]
-            }
+                            conf: 3,
+                        },
+                    },
+                ],
+            },
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
@@ -359,13 +395,13 @@ mod tests {
             ports: vec![
                 portspec::Port {
                     id: 22,
-                    state: portspec::PortState::Closed
+                    state: portspec::PortState::Closed,
                 },
                 portspec::Port {
                     id: 25,
-                    state: portspec::PortState::Open
-                }
-            ]
+                    state: portspec::PortState::Open,
+                },
+            ],
         };
         use nmap::*;
         let host = Host {
@@ -374,18 +410,14 @@ mod tests {
             status: HostStatus {
                 state: HostState::Up,
                 reason: "user-set".to_owned(),
-                reason_ttl: 0
+                reason_ttl: 0,
             },
-            address: Address {
-                addr: ip.clone(),
-            },
+            address: Address { addr: ip.clone() },
             hostnames: HostNames {
-                hostnames: vec![
-                    HostName {
-                        name: format!("{}", ip),
-                        typ: HostNameType::User
-                    }
-                ]
+                hostnames: vec![HostName {
+                    name: format!("{}", ip),
+                    typ: HostNameType::User,
+                }],
             },
             ports: Ports {
                 extra_ports: None,
@@ -396,13 +428,13 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "ssh".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
+                            conf: 3,
+                        },
                     },
                     Port {
                         protocol: "tcp".to_owned(),
@@ -410,27 +442,33 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "https".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
-                    }
-                ]
-            }
+                            conf: 3,
+                        },
+                    },
+                ],
+            },
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
         println!("Analysis: {:?}", analysis);
 
         asserting("Scan fails because an explicit port has not been scanned")
-            .that(&analysis.result).is_equal_to(AnalysisResult::Fail);
+            .that(&analysis.result)
+            .is_equal_to(AnalysisResult::Fail);
 
         let ports = &analysis.port_results;
-        let unscanned: Vec<_> = ports.iter().filter(|x| *x == &PortAnalysisResult::NotScanned(25u16)).collect();
-        asserting("Port 25 has not been scanned").that(&unscanned).has_length(1);
+        let unscanned: Vec<_> = ports
+            .iter()
+            .filter(|x| *x == &PortAnalysisResult::NotScanned(25u16))
+            .collect();
+        asserting("Port 25 has not been scanned")
+            .that(&unscanned)
+            .has_length(1);
     }
 
     #[test]
@@ -441,13 +479,13 @@ mod tests {
             ports: vec![
                 portspec::Port {
                     id: 22,
-                    state: portspec::PortState::Closed
+                    state: portspec::PortState::Closed,
                 },
                 portspec::Port {
                     id: 25,
-                    state: portspec::PortState::Open
-                }
-            ]
+                    state: portspec::PortState::Open,
+                },
+            ],
         };
         use nmap::*;
         let host = Host {
@@ -456,18 +494,14 @@ mod tests {
             status: HostStatus {
                 state: HostState::Up,
                 reason: "user-set".to_owned(),
-                reason_ttl: 0
+                reason_ttl: 0,
             },
-            address: Address {
-                addr: ip.clone(),
-            },
+            address: Address { addr: ip.clone() },
             hostnames: HostNames {
-                hostnames: vec![
-                    HostName {
-                        name: format!("{}", ip),
-                        typ: HostNameType::User
-                    }
-                ]
+                hostnames: vec![HostName {
+                    name: format!("{}", ip),
+                    typ: HostNameType::User,
+                }],
             },
             ports: Ports {
                 extra_ports: None,
@@ -478,13 +512,13 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "ssh".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
+                            conf: 3,
+                        },
                     },
                     Port {
                         protocol: "tcp".to_owned(),
@@ -492,13 +526,13 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "syn-ack".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "smtp".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
+                            conf: 3,
+                        },
                     },
                     Port {
                         protocol: "tcp".to_owned(),
@@ -506,23 +540,24 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "syn-ack".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "https".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
-                    }
-                ]
-            }
+                            conf: 3,
+                        },
+                    },
+                ],
+            },
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
         println!("Analysis: {:?}", analysis);
 
         asserting("Scan fails because an implicit port is open")
-            .that(&analysis.result).is_equal_to(AnalysisResult::Fail);
+            .that(&analysis.result)
+            .is_equal_to(AnalysisResult::Fail);
 
         let ports = &analysis.port_results;
         let unscanned: Vec<_> = ports
@@ -555,7 +590,6 @@ mod tests {
         assert!(wbn.get("Group A").is_some());
         assert!(wbn.get("Group B").is_some());
     }
-
 
     #[test]
     fn portspec_by_ip_okay() {
@@ -602,18 +636,16 @@ mod tests {
             status: HostStatus {
                 state: HostState::Up,
                 reason: "user-set".to_owned(),
-                reason_ttl: 0
+                reason_ttl: 0,
             },
             address: Address {
                 addr: "192.168.0.1".parse().unwrap(),
             },
             hostnames: HostNames {
-                hostnames: vec![
-                    HostName {
-                        name: "192.168.0.1".to_owned(),
-                        typ: HostNameType::User
-                    }
-                ]
+                hostnames: vec![HostName {
+                    name: "192.168.0.1".to_owned(),
+                    typ: HostNameType::User,
+                }],
             },
             ports: Ports {
                 extra_ports: None,
@@ -624,13 +656,13 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "syn-ack".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "smtp".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
+                            conf: 3,
+                        },
                     },
                     Port {
                         protocol: "tcp".to_owned(),
@@ -638,13 +670,13 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "http".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
+                            conf: 3,
+                        },
                     },
                     Port {
                         protocol: "tcp".to_owned(),
@@ -652,16 +684,16 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "syn-ack".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "https".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
-                    }
-                ]
-            }
+                            conf: 3,
+                        },
+                    },
+                ],
+            },
         };
 
         let host3 = Host {
@@ -670,18 +702,16 @@ mod tests {
             status: HostStatus {
                 state: HostState::Up,
                 reason: "user-set".to_owned(),
-                reason_ttl: 0
+                reason_ttl: 0,
             },
             address: Address {
                 addr: "192.168.0.3".parse().unwrap(),
             },
             hostnames: HostNames {
-                hostnames: vec![
-                    HostName {
-                        name: "192.168.0.3".to_owned(),
-                        typ: HostNameType::User
-                    }
-                ]
+                hostnames: vec![HostName {
+                    name: "192.168.0.3".to_owned(),
+                    typ: HostNameType::User,
+                }],
             },
             ports: Ports {
                 extra_ports: None,
@@ -692,13 +722,13 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "reset".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "http".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
+                            conf: 3,
+                        },
                     },
                     Port {
                         protocol: "tcp".to_owned(),
@@ -706,16 +736,16 @@ mod tests {
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "syn-ack".to_owned(),
-                            reason_ttl: 244
+                            reason_ttl: 244,
                         },
                         service: PortService {
                             name: "https".to_owned(),
                             method: "table".to_owned(),
-                            conf: 3
-                        }
-                    }
-                ]
-            }
+                            conf: 3,
+                        },
+                    },
+                ],
+            },
         };
 
         let hosts = vec![host1, host3];
@@ -759,28 +789,28 @@ mod tests {
                     ports: vec![
                         Port {
                             id: 22,
-                            state: PortState::Closed
+                            state: PortState::Closed,
                         },
                         Port {
                             id: 25,
-                            state: PortState::Open
-                        }
-                    ]
+                            state: PortState::Open,
+                        },
+                    ],
                 },
                 PortSpec {
                     name: "Group B".to_owned(),
                     ports: vec![
                         Port {
                             id: 80,
-                            state: PortState::Open
+                            state: PortState::Open,
                         },
                         Port {
                             id: 443,
-                            state: PortState::Open
-                        }
-                    ]
-                }
-            ]
+                            state: PortState::Open,
+                        },
+                    ],
+                },
+            ],
         }
     }
 

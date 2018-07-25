@@ -5,9 +5,7 @@ use std::str::FromStr;
 #[derive(Debug, Fail)]
 pub enum WhiltelistError {
     #[fail(display = "invalid port state: {}", invalid)]
-    InvalidPortState {
-        invalid: String,
-    },
+    InvalidPortState { invalid: String },
 }
 
 #[derive(Debug, Deserialize)]
@@ -19,14 +17,14 @@ pub struct PortSpecs {
 #[derive(Debug, Deserialize)]
 pub struct PortSpec {
     pub name: String,
-    pub ports: Vec<Port>
+    pub ports: Vec<Port>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Port {
     pub id: u16,
     #[serde(deserialize_with = "from_str")]
-    pub state: PortState
+    pub state: PortState,
 }
 
 #[derive(Debug)]
@@ -43,7 +41,7 @@ impl FromStr for PortState {
         match s.as_ref() {
             "closed" => Ok(PortState::Closed),
             "open" => Ok(PortState::Open),
-            _ => Err(WhiltelistError::InvalidPortState{ invalid: s })
+            _ => Err(WhiltelistError::InvalidPortState { invalid: s }),
         }
     }
 }
