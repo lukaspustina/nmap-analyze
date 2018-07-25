@@ -1,4 +1,4 @@
-use mapping::{self, Mapping};
+use mapping::Mapping;
 use nmap::{self, Run};
 use portspec::{self, PortSpecs};
 
@@ -124,13 +124,13 @@ fn analyze_host<'a>(ip: &'a IpAddr, host: &nmap::Host, portspec: &portspec::Port
             &IMPLICIT_CLOSED_PORTSPEC
         };
         let par = match ps_port {
-            portspec::Port { id: _, state: portspec::PortState::Open }
+            portspec::Port { state: portspec::PortState::Open, .. }
                 if port.state.state == nmap::PortStatus::Open => PortAnalysisResult::Pass(port.portid),
-            portspec::Port { id: _, state: portspec::PortState::Open }
+            portspec::Port { state: portspec::PortState::Open, .. }
                 => PortAnalysisResult::Fail(port.portid, PortAnalysisReason::OpenButClosed),
-            portspec::Port { id: _, state: portspec::PortState::Closed }
+            portspec::Port { state: portspec::PortState::Closed, .. }
                 if port.state.state != nmap::PortStatus::Open => PortAnalysisResult::Pass(port.portid),
-            portspec::Port { id: _, state: portspec::PortState::Closed }
+            portspec::Port { state: portspec::PortState::Closed, .. }
                 => PortAnalysisResult::Fail(port.portid, PortAnalysisReason::ClosedButOpen),
         };
         println!("Result for host {}, port {} is {:?}",  ip, port.portid, par);

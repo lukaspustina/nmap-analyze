@@ -1,6 +1,5 @@
 use super::from_str;
 
-use std::net::IpAddr;
 use std::str::FromStr;
 
 #[derive(Debug, Fail)]

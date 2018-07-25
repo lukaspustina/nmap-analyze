@@ -1,6 +1,6 @@
 use super::{SanityCheck, from_str};
 
-use failure::{Error, ResultExt};
+use failure::Error;
 use serde_xml_rs;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -71,7 +71,7 @@ impl Run {
       // cf. `Host#Address`
       Err(serde_xml_rs::Error::Custom(ref s)) if s == "duplicate field `address`" => {
         Err(NmapError::InvalidNmapFile{
-          reason: format!("could not parse file, because parser currently supports only one address per host", ) })
+          reason: "could not parse file, because parser currently supports only one address per host".to_owned() })
       },
       Err(e) => Err(NmapError::InvalidNmapFile{
           reason: format!("could not parse file, because {}", e) }),
