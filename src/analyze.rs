@@ -2,7 +2,8 @@ use mapping::{self, Mapping};
 use nmap::{self, Run};
 use portspec::{self, PortSpecs};
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
+use std::iter::FromIterator;
 use std::net::IpAddr;
 
 static IMPLICIT_CLOSED_PORTSPEC: &portspec::Port = &portspec::Port{ id: 0, state: portspec::PortState::Closed };
@@ -110,16 +111,19 @@ fn portspecs_to_portspec_by_name(portspecs: &PortSpecs) -> BTreeMap<&str, &ports
 /// - If an explicitly specified port has not been scaned: Fail
 /// - If one or more ports do not meet the expectations: Fail
 fn analyze_host<'a>(ip: &'a IpAddr, host: &nmap::Host, portspec: &portspec::PortSpec) -> Analysis<'a> {
-    let ports: Vec<PortAnalysisResult> = host.ports.ports.iter().map( |port| {
-        // TODO Handle case where port is not found: Has it been scanned? -> extraports
+    let mut unscanned_ps_ports: HashSet<u16> = HashSet::from_iter(portspec.ports.iter().map(|x| x.id));
+
+    let mut ports: Vec<PortAnalysisResult> = host.ports.ports.iter().map( |port| {
+        // Remove the current port from the unscanned, explicitly specified ports.
+        let _ = unscanned_ps_ports.remove(&port.portid);
 
         // if port is not explicitly specified then we implicitly set the expected state to closed
-        let wl_port = if let Some(wp) = portspec.ports.iter().find(|x| x.id == port.portid) {
-            wp
+        let ps_port = if let Some(p) = portspec.ports.iter().find(|x| x.id == port.portid) {
+            p
         } else {
             &IMPLICIT_CLOSED_PORTSPEC
         };
-        let par = match wl_port {
+        let par = match ps_port {
             portspec::Port { id: _, state: portspec::PortState::Open }
                 if port.state.state == nmap::PortStatus::Open => PortAnalysisResult::Pass(port.portid),
             portspec::Port { id: _, state: portspec::PortState::Open }
@@ -132,6 +136,9 @@ fn analyze_host<'a>(ip: &'a IpAddr, host: &nmap::Host, portspec: &portspec::Port
         println!("Result for host {}, port {} is {:?}",  ip, port.portid, par);
         par
     }).collect();
+
+    // Add all (remaning) unscanned, explicitly specified ports to the result as "NotScanned"
+    ports.extend(unscanned_ps_ports.iter().map(|x| PortAnalysisResult::NotScanned(*x)));
 
     println!("Results for host {} is {:?}", ip, ports);
 
@@ -427,7 +434,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn analyze_host_implicit_port_open() {
         let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
         let portspec = portspec::PortSpec {
