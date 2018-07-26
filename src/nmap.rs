@@ -163,7 +163,7 @@ impl FromStr for HostState {
 
 #[derive(Debug, Deserialize)]
 pub struct HostNames {
-    #[serde(rename = "hostname")]
+    #[serde(rename = "hostname", default)]
     pub hostnames: Vec<HostName>,
 }
 
