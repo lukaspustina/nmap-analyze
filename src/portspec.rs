@@ -2,10 +2,13 @@ use super::from_str;
 
 use std::str::FromStr;
 
-#[derive(Debug, Fail)]
-pub enum WhiltelistError {
-    #[fail(display = "invalid port state: {}", invalid)]
-    InvalidPortState { invalid: String },
+error_chain! {
+    errors {
+        InvalidPortState(invalid: String) {
+            description("invalid port state")
+            display("invalid port state: {}", invalid)
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,14 +37,14 @@ pub enum PortState {
 }
 
 impl FromStr for PortState {
-    type Err = WhiltelistError;
+    type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
         let s = s.trim().to_lowercase();
         match s.as_ref() {
             "closed" => Ok(PortState::Closed),
             "open" => Ok(PortState::Open),
-            _ => Err(WhiltelistError::InvalidPortState { invalid: s }),
+            _ => Err(Error::from_kind(ErrorKind::InvalidPortState(s))),
         }
     }
 }

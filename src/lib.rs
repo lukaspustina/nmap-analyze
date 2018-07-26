@@ -1,5 +1,5 @@
 #[macro_use]
-extern crate failure;
+extern crate error_chain;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -11,7 +11,6 @@ extern crate serde_yaml;
 #[macro_use]
 extern crate spectral;
 
-use failure::Error;
 use serde::de::{self, Deserialize, Deserializer};
 use std::fmt::Display;
 use std::str::FromStr;
@@ -27,7 +26,8 @@ where
 }
 
 pub trait SanityCheck {
-    fn is_sane(&self) -> Result<(), Error>;
+    type Error;
+    fn is_sane(&self) -> Result<(), Self::Error>;
 }
 
 pub mod analyze;

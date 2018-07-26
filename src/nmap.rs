@@ -1,20 +1,28 @@
 use super::{from_str, SanityCheck};
 
-use failure::Error;
 use serde_xml_rs;
 use std::net::IpAddr;
 use std::str::FromStr;
 
-#[derive(Debug, Fail)]
-pub enum NmapError {
-    #[fail(display = "invalid nmap file because {}", reason)]
-    InvalidNmapFile { reason: String },
-    #[fail(display = "invalid host state: {}", invalid)]
-    InvalidHostState { invalid: String },
-    #[fail(display = "invalid hostname type: {}", invalid)]
-    InvalidHostNameType { invalid: String },
-    #[fail(display = "invalid port status: {}", invalid)]
-    InvalidPortStatus { invalid: String },
+error_chain! {
+    errors {
+        InvalidNmapFile(reason: String) {
+            description("invalid nmap file")
+            display("invalid nmap file because {}", reason)
+        }
+        InvalidHostState(invalid: String) {
+            description("invalid host state")
+            display("invalid host state: {}", invalid)
+        }
+        InvalidHostNameType(invalid: String) {
+            description("invalid hostname type")
+            display("invalid hostname type: {}", invalid)
+        }
+        InvalidPortStatus(invalid: String) {
+            description("invalid port status")
+            display("invalid port status: {}", invalid)
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -28,9 +36,9 @@ pub struct Run {
 }
 
 impl FromStr for Run {
-    type Err = NmapError;
+    type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
         let run: Run = Run::from_bytes(s.as_bytes())?;
 
         Ok(run)
@@ -38,11 +46,13 @@ impl FromStr for Run {
 }
 
 impl SanityCheck for Run {
-    fn is_sane(&self) -> Result<(), Error> {
+    type Error = Error;
+
+    fn is_sane(&self) -> Result<()> {
         if !self.has_dd_options() {
-            return Err(NmapError::InvalidNmapFile {
-                reason: "nmap has been run without -dd option; use nmap -dd ..".to_owned(),
-            }.into());
+            return Err(Error::from_kind(ErrorKind::InvalidNmapFile(
+                "nmap has been run without -dd option; use nmap -dd ..".to_owned()
+            )));
         }
 
         for host in &self.hosts {
@@ -58,18 +68,17 @@ impl Run {
         self.args.contains("-dd")
     }
 
-    fn from_bytes(buffer: &[u8]) -> Result<Self, NmapError> {
+    fn from_bytes(buffer: &[u8]) -> Result<Self> {
         let run = serde_xml_rs::deserialize(buffer);
         match run {
-      Ok(x) => Ok(x),
-      // cf. `Host#Address`
-      Err(serde_xml_rs::Error::Custom(ref s)) if s == "duplicate field `address`" => {
-        Err(NmapError::InvalidNmapFile{
-          reason: "could not parse file, because parser currently supports only one address per host".to_owned() })
-      },
-      Err(e) => Err(NmapError::InvalidNmapFile{
-          reason: format!("could not parse file, because {}", e) }),
-    }
+            Ok(x) => Ok(x),
+            // cf. `Host#Address`
+            Err(serde_xml_rs::Error::Custom(ref s)) if s == "duplicate field `address`" =>
+                Err(Error::from_kind(ErrorKind::InvalidNmapFile(
+                "could not parse file, because parser currently supports only one address per host".to_owned()))),
+            Err(e) => Err(Error::from_kind(ErrorKind::InvalidNmapFile(
+                format!("could not parse file, because {}", e)))),
+        }
     }
 }
 
@@ -89,11 +98,13 @@ pub struct Host {
 }
 
 impl SanityCheck for Host {
-    fn is_sane(&self) -> Result<(), Error> {
+    type Error = Error;
+
+    fn is_sane(&self) -> Result<()> {
         if self.has_extra_ports() {
-            return Err(NmapError::InvalidNmapFile {
-                reason: "Host has extraports defined; use nmap -dd ...".to_owned(),
-            }.into());
+            return Err(Error::from_kind(ErrorKind::InvalidNmapFile(
+                "Host has extraports defined; use nmap -dd ...".to_owned(),
+            )));
         }
 
         Ok(())
@@ -131,16 +142,16 @@ pub enum HostState {
 }
 
 impl FromStr for HostState {
-    type Err = NmapError;
+    type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
         let s = s.trim().to_lowercase();
         match s.as_ref() {
             "up" => Ok(HostState::Up),
             "down" => Ok(HostState::Down),
             "unknown" => Ok(HostState::Unknown),
             "skipped" => Ok(HostState::Skipped),
-            _ => Err(NmapError::InvalidHostState { invalid: s }),
+            _ => Err(Error::from_kind(ErrorKind::InvalidHostState(s))),
         }
     }
 }
@@ -166,14 +177,14 @@ pub enum HostNameType {
 }
 
 impl FromStr for HostNameType {
-    type Err = NmapError;
+    type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
         let s = s.trim().to_lowercase();
         match s.as_ref() {
             "user" => Ok(HostNameType::User),
             "ptr" => Ok(HostNameType::Ptr),
-            _ => Err(NmapError::InvalidHostNameType { invalid: s }),
+            _ => Err(Error::from_kind(ErrorKind::InvalidHostNameType(s))),
         }
     }
 }
@@ -225,9 +236,9 @@ pub enum PortStatus {
 }
 
 impl FromStr for PortStatus {
-    type Err = NmapError;
+    type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
         let s = s.trim().to_lowercase();
         match s.as_ref() {
             "open" => Ok(PortStatus::Open),
@@ -236,7 +247,7 @@ impl FromStr for PortStatus {
             "closed" => Ok(PortStatus::Closed),
             "open|filtered" => Ok(PortStatus::OpenFiltered),
             "close|filtered" => Ok(PortStatus::CloseFiltered),
-            _ => Err(NmapError::InvalidPortStatus { invalid: s }),
+            _ => Err(Error::from_kind(ErrorKind::InvalidPortStatus(s))),
         }
     }
 }
