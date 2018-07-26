@@ -11,9 +11,9 @@
 <taskbegin task="SYN Stealth Scan" time="1532103886"/>
 <taskend task="SYN Stealth Scan" time="1532103887" extrainfo="1000 total ports"/>
 <host starttime="1532103886" endtime="1532103887"><status state="up" reason="arp-response" reason_ttl="0"/>
-<address addr="192.168.101.12" addrtype="ipv4"/>
+<address addr="192.168.0.1" addrtype="ipv4"/>
 <hostnames>
-<hostname name="kevin" type="user"/>
+<hostname name="192.168.0.1" type="user"/>
 </hostnames>
 <ports><port protocol="tcp" portid="1"><state state="closed" reason="reset" reason_ttl="64"/><service name="tcpmux" method="table" conf="3"/></port>
 <port protocol="tcp" portid="3"><state state="closed" reason="reset" reason_ttl="64"/><service name="compressnet" method="table" conf="3"/></port>

@@ -8,11 +8,16 @@ extern crate nmap_analyze;
 extern crate structopt;
 
 use clams::prelude::*;
-use nmap_analyze::{mapping, nmap, portspec};
-use std::path::PathBuf;
+use nmap_analyze::*;
+use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
 error_chain!{
+    errors {
+        InvalidFile {
+            description("Failed to load invalid file")
+        }
+    }
     links {
         Mapping(mapping::Error, mapping::ErrorKind);
         Nmap(nmap::Error, nmap::ErrorKind);
@@ -49,8 +54,8 @@ struct Args {
 fn run() -> Result<i32> {
     let args = Args::from_args();
     clams::console::set_color(!args.no_color);
-    let name = Args::clap().get_name().to_owned();
 
+    let name = "nmap_analyze".to_owned();
     let level: Level = args.verbosity.into();
     eprintln!("{} version={}, log level={:?}",
         &name,
@@ -75,7 +80,76 @@ fn run() -> Result<i32> {
       .expect("Failed to initialize logging");
     debug!("args = {:#?}", args);
 
-    Ok(0)
+    run_nmap_analyze(&args.nmap, &args.mapping, &args.portspec)
+}
+
+fn run_nmap_analyze<T: AsRef<Path>>(nmap_file: T, mapping_file: T, portspecs_file: T) -> Result<i32> {
+    info!("Loading nmap file");
+    let nmap_run = Run::from_file(nmap_file.as_ref())
+        .chain_err(|| ErrorKind::InvalidFile)?;
+    info!("Loading mappings file");
+    let mapping = Mapping::from_file(mapping_file.as_ref())
+        .chain_err(|| ErrorKind::InvalidFile)?;
+    info!("Loading port specification file");
+    let portspecs = PortSpecs::from_file(portspecs_file.as_ref())
+        .chain_err(|| ErrorKind::InvalidFile)?;
+
+    let analyzer_result = default_analysis(&nmap_run, &mapping, &portspecs);
+    info!("Analysis finished.");
+    println!("Analyzer result summary: pass={}, failed={}, errors={}",
+          analyzer_result.pass,
+          analyzer_result.fail,
+          analyzer_result.error,
+    );
+    debug!("{:#?}", analyzer_result);
+
+    match analyzer_result {
+        AnalyzerResult{ fail: 0, error: 0, .. } => {
+            Ok(0)
+        },
+        AnalyzerResult{ fail: x, error: 0, .. } if x > 0 => {
+            Ok(1)
+        },
+        AnalyzerResult{ error: x, .. } if x > 0 => {
+            Ok(10)
+        },
+        AnalyzerResult{ .. } => {
+            error!("This not possible and just to satify the compiler");
+            Ok(100)
+        },
+    }
+}
+
+#[derive(Debug)]
+struct AnalyzerResult<'a> {
+    pass: usize,
+    fail: usize,
+    error: usize,
+    analysis_results: Vec<Analysis<'a>>
+}
+
+fn default_analysis<'a>(nmap_run: &'a Run, mapping: &'a Mapping, portspecs: &'a PortSpecs) -> AnalyzerResult<'a> {
+    let analyzer = Analyzer::new(&nmap_run, &mapping, &portspecs);
+    let analysis_results = analyzer.analyze();
+
+    let mut pass = 0;
+    let mut fail = 0;
+    let mut error = 0;
+    for ar in &analysis_results {
+        match ar.result {
+            AnalysisResult::Pass => {pass = pass + 1;},
+            AnalysisResult::Fail => {fail = fail + 1;},
+            AnalysisResult::Error{ reason: _ } => {error = error + 1;},
+        }
+    }
+    let result = AnalyzerResult {
+        pass,
+        fail,
+        error,
+        analysis_results,
+    };
+
+    result
 }
 
 quick_main!(run);
