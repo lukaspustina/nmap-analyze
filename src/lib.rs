@@ -1,5 +1,8 @@
+extern crate clams;
 #[macro_use]
 extern crate error_chain;
+#[macro_use]
+extern crate log;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;

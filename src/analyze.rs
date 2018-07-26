@@ -174,7 +174,7 @@ fn analyze_host<'a>(
                     ..
                 } => PortAnalysisResult::Fail(port.id, PortAnalysisReason::ClosedButOpen),
             };
-            println!("Result for host {}, port {} is {:?}", ip, port.id, par);
+            trace!("Result for host {}, port {} is {:?}", ip, port.id, par);
             par
         })
         .collect();
@@ -186,7 +186,7 @@ fn analyze_host<'a>(
             .map(|x| PortAnalysisResult::NotScanned(*x)),
     );
 
-    println!("Results for host {} is {:?}", ip, ports);
+    debug!("Results for host {} is {:?}", ip, ports);
 
     let failed = ports
         .iter()
