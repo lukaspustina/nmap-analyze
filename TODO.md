@@ -1,6 +1,5 @@
 # TODO
 
-1. Todos
 1. .travis
 1. Add logging
 1. ::from_file

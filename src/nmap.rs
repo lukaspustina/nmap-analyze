@@ -208,9 +208,8 @@ pub struct ExtraPorts {
 #[derive(Debug, Deserialize)]
 pub struct Port {
     pub protocol: String,
-    #[serde(deserialize_with = "from_str")]
-    // TODO: serde rename this to `id`
-    pub portid: u16,
+    #[serde(rename = "portid", deserialize_with = "from_str")]
+    pub id: u16,
     pub state: PortState,
     pub service: PortService,
 }

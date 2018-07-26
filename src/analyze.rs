@@ -22,7 +22,7 @@ pub struct Analysis<'a> {
 pub enum AnalysisResult {
     Pass,
     Fail,
-    Error,
+    Error{ reason: String },
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -46,7 +46,6 @@ pub struct Analyzer<'a> {
 }
 
 impl<'a> Analyzer<'a> {
-    /// TODO: Currently, there is no error handling for an IP that cannot be mapped to a portspec.
     pub fn new<'b>(
         nmap_run: &'b Run,
         mapping: &'b Mapping,
@@ -65,9 +64,14 @@ impl<'a> Analyzer<'a> {
         self.scanned_host_by_ip
             .iter()
             .map(|(ip, host)| {
-                // TODO Add error for host w/o corresponding portspec
-                let wl = self.portspec_by_ip.get(ip).unwrap();
-                analyze_host(ip, host, wl)
+                match self.portspec_by_ip.get(ip) {
+                    Some(wl) => analyze_host(ip, host, wl),
+                    None => Analysis {
+                        ip,
+                        result: AnalysisResult::Error{reason: "No port spec found for this IP address".to_owned()},
+                        port_results: Vec::new(),
+                    }
+                }
             })
             .collect()
     }
@@ -86,16 +90,17 @@ fn portspec_by_ip<'a>(
     mapping: &'a Mapping,
     portspec: &'a PortSpecs,
 ) -> BTreeMap<&'a IpAddr, &'a portspec::PortSpec> {
-    let wls = portspecs_to_portspec_by_name(portspec);
-    let mut wbi = BTreeMap::new();
+    let pss = portspecs_to_portspec_by_name(portspec);
+    let mut psbi= BTreeMap::new();
 
     for m in mapping {
         let key: &str = &m.port_spec;
-        let wl = wls.get(key).unwrap(); // TODO: Error handling
-        wbi.insert(&m.ip, *wl);
+        if let Some(ps) = pss.get(key) {
+            psbi.insert(&m.ip, *ps);
+        }
     }
 
-    wbi
+    psbi
 }
 
 fn portspecs_to_portspec_by_name(portspecs: &PortSpecs) -> BTreeMap<&str, &portspec::PortSpec> {
@@ -135,10 +140,10 @@ fn analyze_host<'a>(
         .iter()
         .map(|port| {
             // Remove the current port from the unscanned, explicitly specified ports.
-            let _ = unscanned_ps_ports.remove(&port.portid);
+            let _ = unscanned_ps_ports.remove(&port.id);
 
             // if port is not explicitly specified then we implicitly set the expected state to closed
-            let ps_port = if let Some(p) = portspec.ports.iter().find(|x| x.id == port.portid) {
+            let ps_port = if let Some(p) = portspec.ports.iter().find(|x| x.id == port.id) {
                 p
             } else {
                 &IMPLICIT_CLOSED_PORTSPEC
@@ -150,26 +155,26 @@ fn analyze_host<'a>(
                 }
                     if port.state.state == nmap::PortStatus::Open =>
                 {
-                    PortAnalysisResult::Pass(port.portid)
+                    PortAnalysisResult::Pass(port.id)
                 }
                 portspec::Port {
                     state: portspec::PortState::Open,
                     ..
-                } => PortAnalysisResult::Fail(port.portid, PortAnalysisReason::OpenButClosed),
+                } => PortAnalysisResult::Fail(port.id, PortAnalysisReason::OpenButClosed),
                 portspec::Port {
                     state: portspec::PortState::Closed,
                     ..
                 }
                     if port.state.state != nmap::PortStatus::Open =>
                 {
-                    PortAnalysisResult::Pass(port.portid)
+                    PortAnalysisResult::Pass(port.id)
                 }
                 portspec::Port {
                     state: portspec::PortState::Closed,
                     ..
-                } => PortAnalysisResult::Fail(port.portid, PortAnalysisReason::ClosedButOpen),
+                } => PortAnalysisResult::Fail(port.id, PortAnalysisReason::ClosedButOpen),
             };
-            println!("Result for host {}, port {} is {:?}", ip, port.portid, par);
+            println!("Result for host {}, port {} is {:?}", ip, port.id, par);
             par
         })
         .collect();
@@ -214,6 +219,39 @@ mod tests {
     use spectral::prelude::*;
 
     #[test]
+    fn analyzer_no_mapping_for_ip() {
+        let portspecs = portspec::PortSpecs {
+            port_specs: vec![
+                portspec::PortSpec {
+                    name: "Unused Group".to_owned(),
+                    ports: vec![
+                        portspec::Port {
+                            id: 22,
+                            state: portspec::PortState::Closed,
+                        },
+                        portspec::Port {
+                            id: 25,
+                            state: portspec::PortState::Open,
+                        },
+                    ],
+                },
+            ]
+        };
+        let nmap = nmap_data();
+        let mapping = mapping_data();
+
+        let analyzer = Analyzer::new(&nmap, &mapping, &portspecs);
+        let analysis = analyzer.analyze();
+        println!("Analysis: {:?}", analysis);
+
+        assert_that(&analysis).has_length(2);
+        let res0 = &analysis[0];
+        assert_that!(&res0.result).is_equal_to(AnalysisResult::Error{reason: "No port spec found for this IP address".to_owned()});
+        let res1 = &analysis[1];
+        assert_that!(&res1.result).is_equal_to(AnalysisResult::Error{reason: "No port spec found for this IP address".to_owned()});
+    }
+
+    #[test]
     fn analyze_host_explicit_and_implicit_ports_okay() {
         let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
         let portspec = portspec::PortSpec {
@@ -250,7 +288,7 @@ mod tests {
                 ports: vec![
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 22,
+                        id: 22,
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
@@ -264,7 +302,7 @@ mod tests {
                     },
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 25,
+                        id: 25,
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "syn-ack".to_owned(),
@@ -278,7 +316,7 @@ mod tests {
                     },
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 443,
+                        id: 443,
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
@@ -337,7 +375,7 @@ mod tests {
                 ports: vec![
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 22,
+                        id: 22,
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
@@ -351,7 +389,7 @@ mod tests {
                     },
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 25,
+                        id: 25,
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
@@ -365,7 +403,7 @@ mod tests {
                     },
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 443,
+                        id: 443,
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
@@ -424,7 +462,7 @@ mod tests {
                 ports: vec![
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 22,
+                        id: 22,
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
@@ -438,7 +476,7 @@ mod tests {
                     },
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 443,
+                        id: 443,
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
@@ -508,7 +546,7 @@ mod tests {
                 ports: vec![
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 22,
+                        id: 22,
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
@@ -522,7 +560,7 @@ mod tests {
                     },
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 25,
+                        id: 25,
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "syn-ack".to_owned(),
@@ -536,7 +574,7 @@ mod tests {
                     },
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 443,
+                        id: 443,
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "syn-ack".to_owned(),
@@ -652,7 +690,7 @@ mod tests {
                 ports: vec![
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 25,
+                        id: 25,
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "syn-ack".to_owned(),
@@ -666,7 +704,7 @@ mod tests {
                     },
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 80,
+                        id: 80,
                         state: PortState {
                             state: PortStatus::Closed,
                             reason: "reset".to_owned(),
@@ -680,7 +718,7 @@ mod tests {
                     },
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 443,
+                        id: 443,
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "syn-ack".to_owned(),
@@ -718,7 +756,7 @@ mod tests {
                 ports: vec![
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 80,
+                        id: 80,
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "reset".to_owned(),
@@ -732,7 +770,7 @@ mod tests {
                     },
                     Port {
                         protocol: "tcp".to_owned(),
-                        portid: 443,
+                        id: 443,
                         state: PortState {
                             state: PortStatus::Open,
                             reason: "syn-ack".to_owned(),
