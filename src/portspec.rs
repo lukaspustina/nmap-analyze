@@ -1,9 +1,16 @@
-use super::from_str;
+use super::{FromFile, from_str};
 
+use serde_yaml;
 use std::str::FromStr;
 
 error_chain! {
     errors {
+        InvalidPortSpecsFile {
+            description("invalid port specs file")
+        }
+        InvalidPortSpecs {
+            description("invalid port specs")
+        }
         InvalidPortState(invalid: String) {
             description("invalid port state")
             display("invalid port state: {}", invalid)
@@ -16,6 +23,23 @@ pub struct PortSpecs {
     #[serde(rename = "portspecs")]
     pub port_specs: Vec<PortSpec>,
 }
+
+impl FromStr for PortSpecs {
+    type Err = Error;
+
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        PortSpecs::from_bytes(s.as_bytes())
+    }
+}
+
+impl PortSpecs {
+    fn from_bytes(buffer: &[u8]) -> Result<Self> {
+        serde_yaml::from_slice(buffer)
+            .chain_err(|| ErrorKind::InvalidPortSpecs)
+    }
+}
+
+impl FromFile for PortSpecs {}
 
 #[derive(Debug, Deserialize)]
 pub struct PortSpec {
@@ -53,7 +77,7 @@ impl FromStr for PortState {
 mod tests {
     use super::*;
 
-    use serde_yaml;
+    use spectral::prelude::*;
 
     #[test]
     fn parse_portspecs_okay() {
@@ -72,7 +96,12 @@ portspecs:
       - id: 443
         state: open
         "##;
-        let port_specs: PortSpecs = serde_yaml::from_str(s).unwrap();
-        println!("{:#?}", port_specs);
+
+        let res = PortSpecs::from_str(s);
+        println!("{:#?}", res);
+
+        assert_that(&res).is_ok();
+        let port_specs = res.unwrap();
+        assert_that(&port_specs.port_specs).has_length(2);
     }
 }

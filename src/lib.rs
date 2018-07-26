@@ -14,11 +14,58 @@ extern crate serde_yaml;
 #[macro_use]
 extern crate spectral;
 
+pub mod analyze;
+pub mod mapping;
+pub mod nmap;
+pub mod portspec;
+
+pub use mapping::Mapping;
+pub use nmap::Run;
+pub use portspec::PortSpecs;
+
 use serde::de::{self, Deserialize, Deserializer};
 use std::fmt::Display;
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
 use std::str::FromStr;
 
-fn from_str<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+error_chain! {
+    errors {
+        InvalidFileFormat {
+            description("invalid file format")
+        }
+    }
+}
+
+pub trait FromFile {
+    fn from_file<P: AsRef<Path>, E>(path: P) -> ::std::result::Result<Self, Error>
+        where Self: Sized + FromStr<Err = E>, E: error_chain::ChainedError {
+
+            let contents = Self::string_from_file(path)
+            .chain_err(|| ErrorKind::InvalidFileFormat)?;
+
+        Self::from_str(&contents)
+            .chain_err(|| ErrorKind::InvalidFileFormat)
+    }
+
+    fn string_from_file<P: AsRef<Path>>(path: P) -> ::std::result::Result<String, ::std::io::Error> {
+        let path: &Path = path.as_ref();
+
+        let mut file = File::open(path)?;
+        let mut contents = String::new();
+        let _ = file.read_to_string(&mut contents)?;
+
+        Ok(contents)
+    }
+}
+
+pub trait SanityCheck {
+    type Error;
+    fn is_sane(&self) -> ::std::result::Result<(), Self::Error>;
+}
+
+fn from_str<'de, T, D>(deserializer: D) -> ::std::result::Result<T, D::Error>
 where
     T: FromStr,
     T::Err: Display,
@@ -28,14 +75,3 @@ where
     T::from_str(&s).map_err(de::Error::custom)
 }
 
-pub trait SanityCheck {
-    type Error;
-    fn is_sane(&self) -> Result<(), Self::Error>;
-}
-
-pub mod analyze;
-pub mod mapping;
-pub mod nmap;
-pub mod portspec;
-
-pub use nmap::Run;

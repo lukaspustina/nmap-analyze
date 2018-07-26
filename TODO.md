@@ -1,7 +1,5 @@
 # TODO
 
-1. ::from_file
-    1. Check and update all file and string based nmap.xml parsing tests
 1. Add result output; json, human
 1. Add main
 1. Replace all examples with full port output (-dd)

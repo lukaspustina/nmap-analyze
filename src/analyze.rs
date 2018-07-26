@@ -93,7 +93,7 @@ fn portspec_by_ip<'a>(
     let pss = portspecs_to_portspec_by_name(portspec);
     let mut psbi= BTreeMap::new();
 
-    for m in mapping {
+    for m in &mapping.mappings {
         let key: &str = &m.port_spec;
         if let Some(ps) = pss.get(key) {
             psbi.insert(&m.ip, *ps);
@@ -799,22 +799,24 @@ mod tests {
     fn mapping_data() -> mapping::Mapping {
         use mapping::*;
 
-        vec![
-            Host {
-                id: "i-0".to_owned(),
-                hostname: "ec2-192.168.0.1".to_owned(),
-                ip: "192.168.0.1".parse().unwrap(),
-                name: "Group A server".to_owned(),
-                port_spec: "Group A".to_owned(),
-            },
-            Host {
-                id: "i-0".to_owned(),
-                hostname: "ec2-192.168.0.3".to_owned(),
-                ip: "192.168.0.3".parse().unwrap(),
-                name: "Group B server".to_owned(),
-                port_spec: "Group B".to_owned(),
-            },
-        ]
+        mapping::Mapping {
+            mappings: vec![
+                Host {
+                    id: "i-0".to_owned(),
+                    hostname: "ec2-192.168.0.1".to_owned(),
+                    ip: "192.168.0.1".parse().unwrap(),
+                    name: "Group A server".to_owned(),
+                    port_spec: "Group A".to_owned(),
+                },
+                Host {
+                    id: "i-0".to_owned(),
+                    hostname: "ec2-192.168.0.3".to_owned(),
+                    ip: "192.168.0.3".parse().unwrap(),
+                    name: "Group B server".to_owned(),
+                    port_spec: "Group B".to_owned(),
+                },
+            ]
+        }
     }
 
     fn portspecs_data() -> portspec::PortSpecs {

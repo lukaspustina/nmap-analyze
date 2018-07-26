@@ -1,4 +1,4 @@
-use super::{from_str, SanityCheck};
+use super::{FromFile, SanityCheck, from_str};
 
 use serde_xml_rs;
 use std::net::IpAddr;
@@ -6,7 +6,10 @@ use std::str::FromStr;
 
 error_chain! {
     errors {
-        InvalidNmapFile(reason: String) {
+        InvalidNmapFile {
+            description("invalid nmap file")
+        }
+        InsaneNmapFile(reason: String) {
             description("invalid nmap file")
             display("invalid nmap file because {}", reason)
         }
@@ -39,18 +42,33 @@ impl FromStr for Run {
     type Err = Error;
 
     fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-        let run: Run = Run::from_bytes(s.as_bytes())?;
-
-        Ok(run)
+        Run::from_bytes(s.as_bytes())
     }
 }
+
+impl Run {
+    fn from_bytes(buffer: &[u8]) -> Result<Self> {
+        let run = serde_xml_rs::deserialize(buffer);
+        match run {
+            Ok(x) => Ok(x),
+            // cf. `Host#Address`
+            Err(serde_xml_rs::Error::Custom(ref s)) if s == "duplicate field `address`" =>
+                Err(Error::from_kind(ErrorKind::InsaneNmapFile(
+                "could not parse file, because parser currently supports only one address per host".to_owned()))),
+            Err(e) => Err(Error::from_kind(ErrorKind::InsaneNmapFile(
+                format!("could not parse file, because {}", e)))),
+        }
+    }
+}
+
+impl FromFile for Run {}
 
 impl SanityCheck for Run {
     type Error = Error;
 
     fn is_sane(&self) -> Result<()> {
         if !self.has_dd_options() {
-            return Err(Error::from_kind(ErrorKind::InvalidNmapFile(
+            return Err(Error::from_kind(ErrorKind::InsaneNmapFile(
                 "nmap has been run without -dd option; use nmap -dd ..".to_owned()
             )));
         }
@@ -66,19 +84,6 @@ impl SanityCheck for Run {
 impl Run {
     fn has_dd_options(&self) -> bool {
         self.args.contains("-dd")
-    }
-
-    fn from_bytes(buffer: &[u8]) -> Result<Self> {
-        let run = serde_xml_rs::deserialize(buffer);
-        match run {
-            Ok(x) => Ok(x),
-            // cf. `Host#Address`
-            Err(serde_xml_rs::Error::Custom(ref s)) if s == "duplicate field `address`" =>
-                Err(Error::from_kind(ErrorKind::InvalidNmapFile(
-                "could not parse file, because parser currently supports only one address per host".to_owned()))),
-            Err(e) => Err(Error::from_kind(ErrorKind::InvalidNmapFile(
-                format!("could not parse file, because {}", e)))),
-        }
     }
 }
 
@@ -102,7 +107,7 @@ impl SanityCheck for Host {
 
     fn is_sane(&self) -> Result<()> {
         if self.has_extra_ports() {
-            return Err(Error::from_kind(ErrorKind::InvalidNmapFile(
+            return Err(Error::from_kind(ErrorKind::InsaneNmapFile(
                 "Host has extraports defined; use nmap -dd ...".to_owned(),
             )));
         }
