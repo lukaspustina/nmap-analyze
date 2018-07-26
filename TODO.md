@@ -1,6 +1,5 @@
 # TODO
 
-1. .travis
 1. Add logging
 1. ::from_file
 1. Add result output; json, human
