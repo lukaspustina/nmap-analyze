@@ -13,9 +13,9 @@ static IMPLICIT_CLOSED_PORTSPEC: &portspec::Port = &portspec::Port {
 
 #[derive(Debug, Serialize)]
 pub struct Analysis<'a> {
-    ip: &'a IpAddr,
-    result: AnalysisResult,
-    port_results: Vec<PortAnalysisResult>,
+    pub ip: &'a IpAddr,
+    pub result: AnalysisResult,
+    pub port_results: Vec<PortAnalysisResult>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -46,11 +46,11 @@ pub struct Analyzer<'a> {
 }
 
 impl<'a> Analyzer<'a> {
-    pub fn new<'b>(
-        nmap_run: &'b Run,
-        mapping: &'b Mapping,
-        portspecs: &'b PortSpecs,
-    ) -> Analyzer<'b> {
+    pub fn new(
+        nmap_run: &'a Run,
+        mapping: &'a Mapping,
+        portspecs: &'a PortSpecs,
+    ) -> Analyzer<'a> {
         let scanned_host_by_ip = run_to_scanned_hosts_by_ip(&nmap_run);
         let portspec_by_ip = portspec_by_ip(&mapping, &portspecs);
 
@@ -60,7 +60,7 @@ impl<'a> Analyzer<'a> {
         }
     }
 
-    pub fn analyze(&self) -> Vec<Analysis> {
+    pub fn analyze(&self) -> Vec<Analysis<'a>> {
         self.scanned_host_by_ip
             .iter()
             .map(|(ip, host)| {

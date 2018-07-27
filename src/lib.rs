@@ -19,6 +19,7 @@ pub mod mapping;
 pub mod nmap;
 pub mod portspec;
 
+pub use analyze::{Analyzer, Analysis, AnalysisResult};
 pub use mapping::Mapping;
 pub use nmap::Run;
 pub use portspec::PortSpecs;
