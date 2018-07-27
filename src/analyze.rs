@@ -96,7 +96,9 @@ fn portspec_by_ip<'a>(
     for m in &mapping.mappings {
         let key: &str = &m.port_spec;
         if let Some(ps) = pss.get(key) {
-            psbi.insert(&m.ip, *ps);
+            for ip in &m.ips {
+                psbi.insert(ip, *ps);
+            }
         }
     }
 
@@ -804,14 +806,14 @@ mod tests {
                 Host {
                     id: "i-0".to_owned(),
                     hostname: "ec2-192.168.0.1".to_owned(),
-                    ip: "192.168.0.1".parse().unwrap(),
+                    ips: vec!["192.168.0.1".parse().unwrap()],
                     name: "Group A server".to_owned(),
                     port_spec: "Group A".to_owned(),
                 },
                 Host {
                     id: "i-0".to_owned(),
                     hostname: "ec2-192.168.0.3".to_owned(),
-                    ip: "192.168.0.3".parse().unwrap(),
+                    ips: vec!["192.168.0.3".parse().unwrap(), "192.168.0.3".parse().unwrap()],
                     name: "Group B server".to_owned(),
                     port_spec: "Group B".to_owned(),
                 },

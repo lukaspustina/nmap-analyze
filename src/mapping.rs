@@ -1,5 +1,6 @@
-use super::{FromFile, from_str};
+use super::FromFile;
 
+use serde::{Deserialize, Deserializer};
 use serde_json;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -41,11 +42,28 @@ impl FromFile for Mapping {}
 pub struct Host {
     pub id: String,
     pub hostname: String,
-    #[serde(deserialize_with = "from_str")]
-    pub ip: IpAddr,
+    #[serde(deserialize_with = "vec_ip_addr")]
+    pub ips: Vec<IpAddr>,
     pub name: String,
     #[serde(rename = "portspec")]
     pub port_spec: String,
+}
+
+fn vec_ip_addr<'de, D>(deserializer: D) -> ::std::result::Result<Vec<IpAddr>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    let v = Vec::deserialize(deserializer)?;
+    let res: ::std::result::Result<Vec<IpAddr>, _> = v
+        .into_iter()
+        .map(|a: &str|
+             IpAddr::from_str(a)
+                .map_err(Error::custom)
+        )
+        .collect();
+
+    res
 }
 
 #[cfg(test)]
@@ -62,21 +80,21 @@ mod tests {
         {
             "hostname": "ec2-192.168.0.1",
             "id": "i-0",
-            "ip": "192.168.0.1",
+            "ips": ["192.168.0.1"],
             "name": "Group A server",
             "portspec": "Group A"
         },
         {
             "hostname": "ec2-192.168.0.2",
             "id": "i-1",
-            "ip": "192.168.0.2",
+            "ips": ["192.168.0.2"],
             "name": "Group B server",
             "portspec": "Group B"
         },
         {
             "hostname": "ec2-192.168.0.3",
             "id": "i-2",
-            "ip": "192.168.0.3",
+            "ips": ["192.168.0.3", "192.168.0.4"],
             "name": "Group A server",
             "portspec": "Group A"
         }
