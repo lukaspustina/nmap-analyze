@@ -84,14 +84,14 @@ fn run() -> Result<i32> {
 }
 
 fn run_nmap_analyze<T: AsRef<Path>>(nmap_file: T, mapping_file: T, portspecs_file: T) -> Result<i32> {
-    info!("Loading nmap file");
-    let nmap_run = Run::from_file(nmap_file.as_ref())
+    info!("Loading port specification file");
+    let portspecs = PortSpecs::from_file(portspecs_file.as_ref())
         .chain_err(|| ErrorKind::InvalidFile)?;
     info!("Loading mappings file");
     let mapping = Mapping::from_file(mapping_file.as_ref())
         .chain_err(|| ErrorKind::InvalidFile)?;
-    info!("Loading port specification file");
-    let portspecs = PortSpecs::from_file(portspecs_file.as_ref())
+    info!("Loading nmap file");
+    let nmap_run = Run::from_file(nmap_file.as_ref())
         .chain_err(|| ErrorKind::InvalidFile)?;
 
     let analyzer_result = default_analysis(&nmap_run, &mapping, &portspecs);
