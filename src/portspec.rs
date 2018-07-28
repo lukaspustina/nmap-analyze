@@ -1,4 +1,4 @@
-use super::{FromFile, from_str};
+use super::{from_str, FromFile};
 
 use serde_yaml;
 use std::str::FromStr;
@@ -34,8 +34,7 @@ impl FromStr for PortSpecs {
 
 impl PortSpecs {
     fn from_bytes(buffer: &[u8]) -> Result<Self> {
-        serde_yaml::from_slice(buffer)
-            .chain_err(|| ErrorKind::InvalidPortSpecs)
+        serde_yaml::from_slice(buffer).chain_err(|| ErrorKind::InvalidPortSpecs)
     }
 }
 

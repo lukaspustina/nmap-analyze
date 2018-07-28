@@ -1,4 +1,4 @@
-use analyze::{AnalyzerResult, AnalysisResult, PortAnalysisResult, PortAnalysisReason};
+use analyze::{AnalysisResult, AnalyzerResult, PortAnalysisReason, PortAnalysisResult};
 
 use prettytable::cell::Cell;
 use prettytable::row::Row;
@@ -34,11 +34,11 @@ pub enum OutputFormat {
 impl FromStr for OutputFormat {
     type Err = Error;
     fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-        match s.to_lowercase().as_ref()  {
+        match s.to_lowercase().as_ref() {
             "human" => Ok(OutputFormat::Human),
             "json" => Ok(OutputFormat::Json),
             "none" => Ok(OutputFormat::None),
-            _ => Err(ErrorKind::InvalidOutputFormat(s.to_string()).into())
+            _ => Err(ErrorKind::InvalidOutputFormat(s.to_string()).into()),
         }
     }
 }
@@ -52,10 +52,10 @@ pub enum OutputDetail {
 impl FromStr for OutputDetail {
     type Err = Error;
     fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-        match s.to_lowercase().as_ref()  {
+        match s.to_lowercase().as_ref() {
             "fail" => Ok(OutputDetail::Fail),
             "all" => Ok(OutputDetail::All),
-            _ => Err(ErrorKind::InvalidOutputDetail(s.to_string()).into())
+            _ => Err(ErrorKind::InvalidOutputDetail(s.to_string()).into()),
         }
     }
 }
@@ -78,9 +78,9 @@ pub trait HumanOutput {
 
 impl<'a> JsonOutput for AnalyzerResult<'a> {
     fn output<T: Write>(&self, _: &OutputConfig, writer: &mut T) -> Result<()> {
-        let json_str = serde_json::to_string(self)
-            .chain_err(|| ErrorKind::OutputFailed)?;
-        writer.write(json_str.as_bytes())
+        let json_str = serde_json::to_string(self).chain_err(|| ErrorKind::OutputFailed)?;
+        writer
+            .write(json_str.as_bytes())
             .chain_err(|| ErrorKind::OutputFailed)?;
 
         Ok(())
@@ -89,7 +89,9 @@ impl<'a> JsonOutput for AnalyzerResult<'a> {
 
 impl<'a> HumanOutput for AnalyzerResult<'a> {
     fn output<T: Write>(&self, output_config: &OutputConfig, writer: &mut T) -> Result<()> {
-        self.build_table(output_config).print(writer).chain_err(|| ErrorKind::OutputFailed)
+        self.build_table(output_config)
+            .print(writer)
+            .chain_err(|| ErrorKind::OutputFailed)
     }
 
     fn output_tty(&self, output_config: &OutputConfig) -> Result<()> {
@@ -99,7 +101,8 @@ impl<'a> HumanOutput for AnalyzerResult<'a> {
         } else {
             let stdout = ::std::io::stdout();
             let mut writer = stdout.lock();
-            self.build_table(output_config).print(&mut writer)
+            self.build_table(output_config)
+                .print(&mut writer)
                 .chain_err(|| ErrorKind::OutputFailed)
         }
     }
@@ -132,7 +135,7 @@ impl<'a> AnalyzerResult<'a> {
                 match a.result {
                     AnalysisResult::Error { ref reason } => Cell::new(reason),
                     _ => Cell::new(""),
-                }
+                },
             ]);
             table.add_row(row);
 
@@ -166,7 +169,9 @@ fn analysis_result_to_cell(result: &AnalysisResult) -> Cell {
     match result {
         AnalysisResult::Pass => Cell::new("Pass").with_style(Attr::ForegroundColor(color::GREEN)),
         AnalysisResult::Fail => Cell::new("Fail").with_style(Attr::ForegroundColor(color::RED)),
-        AnalysisResult::Error{ .. } => Cell::new("Error").with_style(Attr::ForegroundColor(color::RED)),
+        AnalysisResult::Error { .. } => {
+            Cell::new("Error").with_style(Attr::ForegroundColor(color::RED))
+        }
     }
 }
 
@@ -182,18 +187,30 @@ fn port_analysis_result_to_port_string(result: &PortAnalysisResult) -> String {
 
 fn port_analysis_result_to_port_result_cell(result: &PortAnalysisResult) -> Cell {
     match result {
-        PortAnalysisResult::Pass(_) => Cell::new("passed").with_style(Attr::ForegroundColor(color::GREEN)),
-        PortAnalysisResult::Fail(_, _) => Cell::new("failed").with_style(Attr::ForegroundColor(color::RED)),
-        PortAnalysisResult::NotScanned(_) => Cell::new("not scanned").with_style(Attr::ForegroundColor(color::YELLOW)),
-        PortAnalysisResult::Unknown(_) => Cell::new("unknown").with_style(Attr::ForegroundColor(color::RED)),
+        PortAnalysisResult::Pass(_) => {
+            Cell::new("passed").with_style(Attr::ForegroundColor(color::GREEN))
+        }
+        PortAnalysisResult::Fail(_, _) => {
+            Cell::new("failed").with_style(Attr::ForegroundColor(color::RED))
+        }
+        PortAnalysisResult::NotScanned(_) => {
+            Cell::new("not scanned").with_style(Attr::ForegroundColor(color::YELLOW))
+        }
+        PortAnalysisResult::Unknown(_) => {
+            Cell::new("unknown").with_style(Attr::ForegroundColor(color::RED))
+        }
     }
 }
 
 fn port_analysis_result_to_port_result_reason(result: &PortAnalysisResult) -> String {
     match result {
         PortAnalysisResult::Pass(_) => "",
-        PortAnalysisResult::Fail(_, PortAnalysisReason::OpenButClosed) => "expected Open, found Closed",
-        PortAnalysisResult::Fail(_, PortAnalysisReason::ClosedButOpen) => "expected Closed, found Open",
+        PortAnalysisResult::Fail(_, PortAnalysisReason::OpenButClosed) => {
+            "expected Open, found Closed"
+        }
+        PortAnalysisResult::Fail(_, PortAnalysisReason::ClosedButOpen) => {
+            "expected Closed, found Open"
+        }
         PortAnalysisResult::Fail(_, PortAnalysisReason::Unknown) => "unknown",
         PortAnalysisResult::NotScanned(_) => "",
         PortAnalysisResult::Unknown(_) => "",

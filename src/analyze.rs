@@ -16,10 +16,14 @@ pub struct AnalyzerResult<'a> {
     pub pass: usize,
     pub fail: usize,
     pub error: usize,
-    pub analysis_results: Vec<Analysis<'a>>
+    pub analysis_results: Vec<Analysis<'a>>,
 }
 
-pub fn default_analysis<'a>(nmap_run: &'a Run, mapping: &'a Mapping, portspecs: &'a PortSpecs) -> AnalyzerResult<'a> {
+pub fn default_analysis<'a>(
+    nmap_run: &'a Run,
+    mapping: &'a Mapping,
+    portspecs: &'a PortSpecs,
+) -> AnalyzerResult<'a> {
     let analyzer = Analyzer::new(&nmap_run, &mapping, &portspecs);
     let analysis_results = analyzer.analyze();
 
@@ -28,9 +32,15 @@ pub fn default_analysis<'a>(nmap_run: &'a Run, mapping: &'a Mapping, portspecs: 
     let mut error = 0;
     for ar in &analysis_results {
         match ar.result {
-            AnalysisResult::Pass => {pass += 1;},
-            AnalysisResult::Fail => {fail += 1;},
-            AnalysisResult::Error{ .. } => {error += 1;},
+            AnalysisResult::Pass => {
+                pass += 1;
+            }
+            AnalysisResult::Fail => {
+                fail += 1;
+            }
+            AnalysisResult::Error { .. } => {
+                error += 1;
+            }
         }
     }
 
@@ -54,7 +64,7 @@ pub struct Analysis<'a> {
 pub enum AnalysisResult {
     Pass,
     Fail,
-    Error{ reason: String },
+    Error { reason: String },
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -78,11 +88,7 @@ pub struct Analyzer<'a> {
 }
 
 impl<'a> Analyzer<'a> {
-    pub fn new(
-        nmap_run: &'a Run,
-        mapping: &'a Mapping,
-        portspecs: &'a PortSpecs,
-    ) -> Analyzer<'a> {
+    pub fn new(nmap_run: &'a Run, mapping: &'a Mapping, portspecs: &'a PortSpecs) -> Analyzer<'a> {
         let scanned_host_by_ip = run_to_scanned_hosts_by_ip(&nmap_run);
         let portspec_by_ip = portspec_by_ip(&mapping, &portspecs);
 
@@ -95,16 +101,16 @@ impl<'a> Analyzer<'a> {
     pub fn analyze(&self) -> Vec<Analysis<'a>> {
         self.scanned_host_by_ip
             .iter()
-            .map(|(ip, host)| {
-                match self.portspec_by_ip.get(ip) {
-                    Some(ps) => analyze_host(ip, host, ps),
-                    None => Analysis {
-                        ip,
-                        portspec_name: None,
-                        result: AnalysisResult::Error{reason: "no port spec found for this IP address".to_owned()},
-                        port_results: Vec::new(),
-                    }
-                }
+            .map(|(ip, host)| match self.portspec_by_ip.get(ip) {
+                Some(ps) => analyze_host(ip, host, ps),
+                None => Analysis {
+                    ip,
+                    portspec_name: None,
+                    result: AnalysisResult::Error {
+                        reason: "no port spec found for this IP address".to_owned(),
+                    },
+                    port_results: Vec::new(),
+                },
             })
             .collect()
     }
@@ -124,7 +130,7 @@ fn portspec_by_ip<'a>(
     portspec: &'a PortSpecs,
 ) -> BTreeMap<&'a IpAddr, &'a portspec::PortSpec> {
     let pss = portspecs_to_portspec_by_name(portspec);
-    let mut psbi= BTreeMap::new();
+    let mut psbi = BTreeMap::new();
 
     for m in &mapping.mappings {
         let key: &str = &m.port_spec;
@@ -257,21 +263,19 @@ mod tests {
     #[test]
     fn analyzer_no_mapping_for_ip() {
         let portspecs = portspec::PortSpecs {
-            port_specs: vec![
-                portspec::PortSpec {
-                    name: "Unused Group".to_owned(),
-                    ports: vec![
-                        portspec::Port {
-                            id: 22,
-                            state: portspec::PortState::Closed,
-                        },
-                        portspec::Port {
-                            id: 25,
-                            state: portspec::PortState::Open,
-                        },
-                    ],
-                },
-            ]
+            port_specs: vec![portspec::PortSpec {
+                name: "Unused Group".to_owned(),
+                ports: vec![
+                    portspec::Port {
+                        id: 22,
+                        state: portspec::PortState::Closed,
+                    },
+                    portspec::Port {
+                        id: 25,
+                        state: portspec::PortState::Open,
+                    },
+                ],
+            }],
         };
         let nmap = nmap_data();
         let mapping = mapping_data();
@@ -282,9 +286,13 @@ mod tests {
 
         assert_that(&analysis).has_length(2);
         let res0 = &analysis[0];
-        assert_that!(&res0.result).is_equal_to(AnalysisResult::Error{reason: "no port spec found for this IP address".to_owned()});
+        assert_that!(&res0.result).is_equal_to(AnalysisResult::Error {
+            reason: "no port spec found for this IP address".to_owned(),
+        });
         let res1 = &analysis[1];
-        assert_that!(&res1.result).is_equal_to(AnalysisResult::Error{reason: "no port spec found for this IP address".to_owned()});
+        assert_that!(&res1.result).is_equal_to(AnalysisResult::Error {
+            reason: "no port spec found for this IP address".to_owned(),
+        });
     }
 
     #[test]
@@ -847,11 +855,14 @@ mod tests {
                 Host {
                     id: "i-0".to_owned(),
                     hostname: "ec2-192.168.0.3".to_owned(),
-                    ips: vec!["192.168.0.3".parse().unwrap(), "192.168.0.3".parse().unwrap()],
+                    ips: vec![
+                        "192.168.0.3".parse().unwrap(),
+                        "192.168.0.3".parse().unwrap(),
+                    ],
                     name: "Group B server".to_owned(),
                     port_spec: "Group B".to_owned(),
                 },
-            ]
+            ],
         }
     }
 

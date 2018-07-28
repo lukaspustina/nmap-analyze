@@ -31,8 +31,7 @@ impl FromStr for Mapping {
 
 impl Mapping {
     fn from_bytes(buffer: &[u8]) -> Result<Self> {
-        serde_json::from_slice(buffer)
-            .chain_err(|| ErrorKind::InvalidMappings)
+        serde_json::from_slice(buffer).chain_err(|| ErrorKind::InvalidMappings)
     }
 }
 
@@ -57,10 +56,7 @@ where
     let v = Vec::deserialize(deserializer)?;
     let res: ::std::result::Result<Vec<IpAddr>, _> = v
         .into_iter()
-        .map(|a: &str|
-             IpAddr::from_str(a)
-                .map_err(Error::custom)
-        )
+        .map(|a: &str| IpAddr::from_str(a).map_err(Error::custom))
         .collect();
 
     res

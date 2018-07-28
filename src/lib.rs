@@ -21,7 +21,7 @@ pub mod nmap;
 pub mod output;
 pub mod portspec;
 
-pub use analyze::{Analyzer, AnalyzerResult, Analysis, AnalysisResult, default_analysis};
+pub use analyze::{default_analysis, Analysis, AnalysisResult, Analyzer, AnalyzerResult};
 pub use mapping::Mapping;
 pub use nmap::Run;
 pub use portspec::PortSpecs;
@@ -43,16 +43,18 @@ error_chain! {
 
 pub trait FromFile {
     fn from_file<P: AsRef<Path>, E>(path: P) -> ::std::result::Result<Self, Error>
-        where Self: Sized + FromStr<Err = E>, E: error_chain::ChainedError {
+    where
+        Self: Sized + FromStr<Err = E>,
+        E: error_chain::ChainedError,
+    {
+        let contents = Self::string_from_file(path).chain_err(|| ErrorKind::InvalidFileFormat)?;
 
-            let contents = Self::string_from_file(path)
-            .chain_err(|| ErrorKind::InvalidFileFormat)?;
-
-        Self::from_str(&contents)
-            .chain_err(|| ErrorKind::InvalidFileFormat)
+        Self::from_str(&contents).chain_err(|| ErrorKind::InvalidFileFormat)
     }
 
-    fn string_from_file<P: AsRef<Path>>(path: P) -> ::std::result::Result<String, ::std::io::Error> {
+    fn string_from_file<P: AsRef<Path>>(
+        path: P,
+    ) -> ::std::result::Result<String, ::std::io::Error> {
         let path: &Path = path.as_ref();
 
         let mut file = File::open(path)?;
@@ -77,4 +79,3 @@ where
     let s = String::deserialize(deserializer)?;
     T::from_str(&s).map_err(de::Error::custom)
 }
-

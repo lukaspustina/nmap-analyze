@@ -1,4 +1,4 @@
-use super::{FromFile, SanityCheck, from_str};
+use super::{from_str, FromFile, SanityCheck};
 
 use serde_xml_rs;
 use std::net::IpAddr;
@@ -69,7 +69,7 @@ impl SanityCheck for Run {
     fn is_sane(&self) -> Result<()> {
         if !self.has_dd_options() {
             return Err(Error::from_kind(ErrorKind::InsaneNmapFile(
-                "nmap has been run without -dd option; use nmap -dd ..".to_owned()
+                "nmap has been run without -dd option; use nmap -dd ..".to_owned(),
             )));
         }
 
