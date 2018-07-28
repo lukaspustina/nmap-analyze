@@ -31,7 +31,7 @@ fn run_nmap_analyze_human_failed_output() {
     let portspecs = PortSpecs::from_file("tests/portspecs.yml").expect("Failed to load portspecs file");
     let mapping = Mapping::from_file("tests/portspec_mapping.json").expect("Failed to mappings file");
     let nmap_run = Run::from_file("tests/nmap-dd_all_ports.xml").expect("Failed to load nmap file");
-    let _ = nmap_run.is_sane().expect("Nmap file is not sane");
+    nmap_run.is_sane().expect("Nmap file is not sane");
 
     let analyzer_result = default_analysis(&nmap_run, &mapping, &portspecs);
 

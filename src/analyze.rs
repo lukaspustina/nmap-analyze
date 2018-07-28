@@ -28,19 +28,18 @@ pub fn default_analysis<'a>(nmap_run: &'a Run, mapping: &'a Mapping, portspecs: 
     let mut error = 0;
     for ar in &analysis_results {
         match ar.result {
-            AnalysisResult::Pass => {pass = pass + 1;},
-            AnalysisResult::Fail => {fail = fail + 1;},
-            AnalysisResult::Error{ reason: _ } => {error = error + 1;},
+            AnalysisResult::Pass => {pass += 1;},
+            AnalysisResult::Fail => {fail += 1;},
+            AnalysisResult::Error{ .. } => {error += 1;},
         }
     }
-    let result = AnalyzerResult {
+
+    AnalyzerResult {
         pass,
         fail,
         error,
         analysis_results,
-    };
-
-    result
+    }
 }
 
 #[derive(Debug, Serialize)]

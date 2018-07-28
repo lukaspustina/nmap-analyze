@@ -166,7 +166,7 @@ fn analysis_result_to_cell(result: &AnalysisResult) -> Cell {
     match result {
         AnalysisResult::Pass => Cell::new("Pass").with_style(Attr::ForegroundColor(color::GREEN)),
         AnalysisResult::Fail => Cell::new("Fail").with_style(Attr::ForegroundColor(color::RED)),
-        AnalysisResult::Error{ reason: _ } => Cell::new("Error").with_style(Attr::ForegroundColor(color::RED)),
+        AnalysisResult::Error{ .. } => Cell::new("Error").with_style(Attr::ForegroundColor(color::RED)),
     }
 }
 

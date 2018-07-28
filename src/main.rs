@@ -110,7 +110,7 @@ fn run_nmap_analyze<T: AsRef<Path>>(nmap_file: T, mapping_file: T, portspecs_fil
     let nmap_run = Run::from_file(nmap_file.as_ref())
         .chain_err(|| ErrorKind::InvalidFile)?;
     info!("Checking nmap sanity");
-    let _ = nmap_run.is_sane()
+    nmap_run.is_sane()
         .chain_err(|| ErrorKind::InvalidFile)?;
 
     info!("Analyzing");
