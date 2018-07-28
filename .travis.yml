@@ -74,6 +74,32 @@ before_deploy: |
   echo "Running before each single deployment..."
   echo "Run before each single deployment."
 deploy:
+  - provider: packagecloud
+    username: lukaspustina
+    token:
+      secure: aXaSc2cA4HSvD5zZcJ4ENJyVc2d3aYnScAoNMSMTHsPUS7o+XlFmG+cg16nrgJ6Ct1/sAqUWHzwnkZbrzEfdqlW85Qc0cOavfSLKnYeOq4dy702moktjZOuGkXHo/0USa0VWQr3P70IBOJM2FGP9HG9Ke5qETT7pDIpvqe+g6eOBSd8ZyAfCPwZZIDnT8cKVGMOWIqxecfoEUVkzdZ6AKBrOBQldAn/rcBWsz2cWCYMMfeczH//Y5Pq+WaEVdGgCEJwm9QobRA84404+CI1bJCgXO0ws9Rbqc0EN7/5q3X4NCrO0qlUT5hm3SB6UiYySyUn1dgIpNZyWnJ3njaqHLLL9Jc07FL4/48gJa+qnrvvotcDNYbNzl38uiHMlfq1QtsP0QgHH/QunCS9GKsjaT7O8OQmFHO98BVOxF24OU22if3XfLe9z9SWHyOelEVezKJ/pFDfP3hnG8ZQ3sMN6rw4UwSgH90hvZfvaJoVNDq986A649cvrVi0OzbeHkjrbXt81SbcpgHRYuFsoF9aMryZSFHSsPKk6hpm/eZnbRdgRsseNlnOy2/nnDeb+LUu5DYeXRmUBPw9qaBQbFUG7OHUcTPIQWtwH4cpy/GjV+yrU1a28LSxtUJgM0cQfY88Ijxrl2GMdBeb0HOghwrTpIIRuWnAvucbVFWzmVbDpNV4=
+    repository: opensource
+    dist: ubuntu/trusty
+    package_glob: "**/*.deb"
+    skip_cleanup: true
+    on:
+      tags: true
+      condition:
+      - "$DEPLOY_DEB"
+      - "$TRAVIS_TAG"
+  - provider: packagecloud
+    username: centerdevice
+    token:
+      secure: ITNDHqVvRg8nk2OhvlYr9EGzBvLinJ3Muk0/P982NsRYmB1QCZ+v6Sc74VJlPTeB12bwf2+gsos8XBiy9q8vseH8d0MwCxQEyFolAojLhwKX/gqMReIW3tBlqNl3EO2FYH6Zb2sg9mltUoooI4CLOzVa7cPjj6hvMfF7ivgZAgdyKqUbieZZCBGL1DKqBIjPMjPYO/5DFZ2H0vaXzjJ0+7c4AO5wZNL6qfKkGohoVsnpZjXePxsb7epWU8dVi9fHsbGPWjTubNFy75BHn2zaxhxO5iGyketCcCQiFvfiV9y6X4IzXt0Q/Xl78GDla/YkWBumMc+C9onZLqonCjJ5UcDwOQoi7RJqOI8Y1PttxGXB/+y/DIXsNDHhK6T5mmvRtH3tCUS+o49GBPylw/1cE/7fIBM23CWUpQBtty3oYodYP5W03k7H8LgFRuhu4+VhG+XywZ7Zq1bVk+tVWIesJQ+q1uyqPuSgCVw5om2SKNL3Lkg4D74PJ8ZVjWe/H+whUggFQf8IMSsEYp4LtgHVM5WwvUbzz36A+k8GUDrW+uZRd/5cN9PrRyCiqOg0MtDUQ1QK+ELGj3RvrCia79Ks4Dj66AHpRLfbsJTrYMOYVH1/TOIvC3M6rSly0Z5VVgd5GAF95C6ZbyJKzSVP1VX0cGILv8o+6hhaa/XCXliKUsw=
+    repository: infrastructure
+    dist: ubuntu/trusty
+    package_glob: "**/*.deb"
+    skip_cleanup: true
+    on:
+      tags: true
+      condition:
+      - "$DEPLOY_DEB"
+      - "$TRAVIS_TAG"
   - provider: releases
     api_key:
       secure: hadvNsv7qyrRD2KzvxlmRQE7v363ZpbdoIurf9JSfydTmwmSKsuUe+jsuv5OBTCUd/eoHBLnHdRcFNM7dXROH/Dhg4MBnNAJJP0+DEjTCUxLpV2xNkYJijaqt6rw8ZAWPGXBttz6+/2ug5xDSjtxIXYmE23F6gabkgNBbZF0X+s0EnoZXEEgWPtvNQ9Qdik/bNZbWs3OB7oYEopO+KGctelz7SHfYTFW6K9UYAaYvrsHZnYdHu2x3EcyLhOag2Af5loyi7ZvFvoeswCvkMhsGVh+IuDuD6FSnw4apG6vQaN3LFCMZqjLJ0WMAEPMeFA/OPl3ltoUP/GFvwvu3ft2j48tyP0t2TvYT0g+WgjuczkMmon18ZWBN1fh0OLvsm7XaCRYRIhDXuidyivT7mI2/W/QfG+HiOij4g303xqNepWbR/IxSb6CLTZbDSYec5SSOttspEom4fsnH4mYhYiu/FKdHwfiWiHdeyw8Lql5y2BLaE/IIneYdG2nN701AR+qlo5AJendHDSQrfhF02LQCO1Q2wIxfwO5H9MGYnKK6RWJCJH2X/dfv2xRCX6lC8tnrpK/knISvsbYVom7eATQ9cpFJn3poomnxisTVwSuHI9JgzhX8pdDe0DbeIdga9BnrFc1e21uZeweJgqO7T2LAlmY8kL0qbQhW5ynvICZzDw=

@@ -1,0 +1,9 @@
+Package: @@PACKAGE_NAME@@
+Version: @@VERSION@@
+Section: admin
+Priority: optional
+Architecture: @@ARCH@@
+Installed-Size: @@SIZE@@
+Maintainer: lukas@pustina.net
+Description: Analyzes nmap xml output and compares results with expected specification
+

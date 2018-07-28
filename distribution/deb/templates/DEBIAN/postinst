@@ -1,0 +1,5 @@
+chown root:root /usr/bin/nmap-analyze
+chmod 755 /usr/bin/nmap-analyze
+
+mandb
+
