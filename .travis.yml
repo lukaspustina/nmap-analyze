@@ -7,7 +7,7 @@ env:
 matrix:
   fast_finish: true
   include:
-  - env: TARGET=x86_64-unknown-linux-gnu DEPLOY_DEB=1 DEPLOY_GITHUB=1 DEPLOY_ARCH=amd64
+  - env: TARGET=x86_64-unknown-linux-gnu DEPLOY_CRATES_IO=1 DEPLOY_DEB=1 DEPLOY_GITHUB=1 DEPLOY_ARCH=amd64
     rust: 1.26.0
   - env: TARGET=x86_64-apple-darwin DEPLOY_GITHUB=1
     rust: 1.26.0
@@ -112,6 +112,9 @@ deploy:
       condition:
       - "$DEPLOY_GITHUB"
       - "$TRAVIS_TAG"
-after_deploy:
-- cd /home/travis/build/lukaspustina/$CRATE_NAME; cargo publish --token ${CRATES_IO_TOKEN}
+after_deploy: |
+  if [[ "$DEPLOY_CRATES_IO" ]]; then
+    cd /home/travis/build/lukaspustina/$CRATE_NAME
+    cargo publish --token ${CRATES_IO_TOKEN} --allow-dirty
+  fi
 
