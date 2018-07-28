@@ -3,6 +3,7 @@ env:
   global:
   - CRATE_NAME=nmap-analyze
     #  - RUSTFLAGS="-C link-dead-code"
+  - secure: MkExTSmTijETmgx6/MTKCSkgPf450Wp8jXkeyNIE9Qw+dgSOVs1yHyfItpZAkO7Y1foEUaTPwLiqQ1X4ATJSehOqikNMblM53WZWk7YFfWI3/JEqc23SifZv3rqmlcVq3vQi0khv0Rn9QPxkOMN4a16lo1yt/w1xQlznYfgBrY+YKKk8JVEjfmqkzk/5oQ+ztKhmoW+Macx2I2nXkzKUK1DGts8UqECubMiypD+YOknLdCeP7vZjq5XBMk34U+urhZ586FjdFqhX5LvkHxoMAOm7gjKQioTqTcbsSAm+aDCpzJNK8Yj+KpRm03RYDV45tJlgJ/zBCRFx9u55ztdzeSs3sI6JhhfROvdpTvwRZDQy+8c1MwU/bPJ0DPCRc/uOrRp0WliDiapYbQZUtDI7drm6IM/mAgqSLHt2SI4ZtAiNWI4AWIa0RGF9gnVdaxMhkx3hrMA0vIyVVCOZhd4RbAUZo6csDxTB4RVS3BOwV3ub7OpQHbrqHOd9wJLjA26Mo5gOSpZUn/7BV4Pz1lSxdsPROYxrHJOfoI65SYP6TICvL3g2PIapt6tJlv/AM2ooG+9V1DgOYOVTbAGILyIm2WsmuU5BvIH2YPXSsqL5BG6BKF/ZsEISRBztG7MBgyxU3rKz0xuTY++KyKD2qzGPs8s+i0i8wtDmDKVKbJlnIHw=
 matrix:
   fast_finish: true
   include:
@@ -111,3 +112,6 @@ deploy:
       condition:
       - "$DEPLOY_GITHUB"
       - "$TRAVIS_TAG"
+after_deploy:
+- cd /home/travis/build/lukaspustina/$CRATE_NAME; cargo publish --token ${CRATES_IO_TOKEN}
+
