@@ -1,6 +1,6 @@
 [package]
 name = "nmap-analyze"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["Lukas Pustina <lukas@pustina.net>"]
 description = "Analyzes nmap xml output and compares results with expected specification"
 repository = "https://github.com/lukaspustina/nmap-analyze.git"
