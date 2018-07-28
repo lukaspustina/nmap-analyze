@@ -42,8 +42,8 @@ addons:
     - binutils-dev
     - libiberty-dev
 after_success: |
-  echo "Running integration tests" && (cd tests; make) && echo "Integration tests finished"
   if [[ "$TRAVIS_OS_NAME" == "linux" && "$CODECOV" ]]; then
+    echo "Running code coverage" &&
     wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
     tar xzf master.tar.gz &&
     cd kcov-master &&
@@ -59,6 +59,7 @@ after_success: |
     echo "Uploaded code coverage."
   fi
   if [[ "$TRAVIS_TAG" && ( "$DEPLOY_DEB" || "DEPLOY_GITHUB" ) ]]; then
+    echo "Running release build" &&
     cargo build --release &&
     cp "target/release/$CRATE_NAME" "target/release/$CRATE_NAME-$TRAVIS_TAG-$TARGET" &&
     gzip "target/release/$CRATE_NAME-$TRAVIS_TAG-$TARGET" &&
@@ -66,6 +67,7 @@ after_success: |
     echo "Built Release Binary."
   fi
   if [[ "$DEPLOY_DEB" && "$DEPLOY_ARCH" && "$TRAVIS_TAG" ]]; then
+    echo "Running deb packaging" &&
     cd distribution/deb/ &&
     SRC_DIR=../../ BIN_DIR=../../target/release ARCH=$DEPLOY_ARCH VERSION=$TRAVIS_TAG TAG=$TRAVIS_TAG DIST=trusty make package &&
     cd ../.. &&
