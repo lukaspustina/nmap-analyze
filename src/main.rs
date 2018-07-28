@@ -10,6 +10,7 @@ extern crate structopt;
 use clams::prelude::*;
 use nmap_analyze::*;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use structopt::StructOpt;
 
 error_chain!{
@@ -17,11 +18,53 @@ error_chain!{
         InvalidFile {
             description("Failed to load invalid file")
         }
+        InvalidOutputType(reason: String) {
+            description("Invalid output type selected")
+            display("Invalid output type '{}' selected", reason)
+        }
+        InvalidOutputDetail(reason: String) {
+            description("Invalid output detail selected")
+            display("Invalid output detail '{}' selected", reason)
+        }
     }
     links {
         Mapping(mapping::Error, mapping::ErrorKind);
         Nmap(nmap::Error, nmap::ErrorKind);
         Portspec(portspec::Error, portspec::ErrorKind);
+    }
+}
+
+#[derive(Debug)]
+enum OutputType {
+    Human,
+    Json,
+}
+
+impl FromStr for OutputType {
+    type Err = Error;
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref()  {
+            "human" => Ok(OutputType::Human),
+            "json" => Ok(OutputType::Json),
+            _ => Err(ErrorKind::InvalidOutputType(s.to_string()).into())
+        }
+    }
+}
+
+#[derive(Debug)]
+enum OutputDetail {
+    Fail,
+    All,
+}
+
+impl FromStr for OutputDetail {
+    type Err = Error;
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref()  {
+            "fail" => Ok(OutputDetail::Fail),
+            "all" => Ok(OutputDetail::All),
+            _ => Err(ErrorKind::InvalidOutputDetail(s.to_string()).into())
+        }
     }
 }
 
@@ -40,9 +83,12 @@ struct Args {
     /// Portspec file
     #[structopt(short = "p", long = "portspec", parse(from_os_str))]
     portspec: PathBuf,
-    /// Select output format
-    #[structopt(short = "o", long = "output", default_value = "human")]
-    output: String,
+    /// Select output format type
+    #[structopt(short = "o", long = "output", default_value = "human", raw(possible_values = r#"&["human", "json"]"#))]
+    output: OutputType,
+    /// Select output detail level
+    #[structopt(long = "output-detail", default_value = "fail", raw(possible_values = r#"&["fail", "all"]"#))]
+    output_detail: OutputDetail,
     /// Do not use colored output
     #[structopt(long = "no-color")]
     no_color: bool,
@@ -53,12 +99,18 @@ struct Args {
 
 fn run() -> Result<i32> {
     let args = Args::from_args();
+    setup("nmap_analyze", &args);
+    debug!("args = {:#?}", args);
+
+    run_nmap_analyze(&args.nmap, &args.mapping, &args.portspec)
+}
+
+fn setup(name: &str, args: &Args) {
     clams::console::set_color(!args.no_color);
 
-    let name = "nmap_analyze".to_owned();
     let level: Level = args.verbosity.into();
     eprintln!("{} version={}, log level={:?}",
-        &name,
+        name,
         env!("CARGO_PKG_VERSION"),
         &level
     );
@@ -69,7 +121,7 @@ fn run() -> Result<i32> {
       Level(log::LevelFilter::Error),
       vec![
         ModLevel {
-            module: name,
+            module: name.to_owned(),
             level,
         },
       ],
@@ -78,9 +130,6 @@ fn run() -> Result<i32> {
 
     init_logging(log_config)
       .expect("Failed to initialize logging");
-    debug!("args = {:#?}", args);
-
-    run_nmap_analyze(&args.nmap, &args.mapping, &args.portspec)
 }
 
 fn run_nmap_analyze<T: AsRef<Path>>(nmap_file: T, mapping_file: T, portspecs_file: T) -> Result<i32> {
