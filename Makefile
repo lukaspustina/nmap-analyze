@@ -1,4 +1,4 @@
-all: check build test tests
+all: check build test
 
 todos:
 	rg --vimgrep -g '!Makefile' -i todo 
@@ -10,17 +10,14 @@ build:
 	cargo build
 
 test:
-	cargo test
-
-tests:
-	cd $@ && $(MAKE)
+	cargo test --all --no-fail-fast
 
 docs: man
 	
 man:
 	$(MAKE) -C docs
 
-release: release-bump all docs
+release: release-bump all
 	git commit -am "Bump to version $$(cargo read-manifest | jq .version)"
 	git tag v$$(cargo read-manifest | jq -r .version)
 
