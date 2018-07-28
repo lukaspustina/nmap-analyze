@@ -19,6 +19,30 @@ pub struct AnalyzerResult<'a> {
     pub analysis_results: Vec<Analysis<'a>>
 }
 
+pub fn default_analysis<'a>(nmap_run: &'a Run, mapping: &'a Mapping, portspecs: &'a PortSpecs) -> AnalyzerResult<'a> {
+    let analyzer = Analyzer::new(&nmap_run, &mapping, &portspecs);
+    let analysis_results = analyzer.analyze();
+
+    let mut pass = 0;
+    let mut fail = 0;
+    let mut error = 0;
+    for ar in &analysis_results {
+        match ar.result {
+            AnalysisResult::Pass => {pass = pass + 1;},
+            AnalysisResult::Fail => {fail = fail + 1;},
+            AnalysisResult::Error{ reason: _ } => {error = error + 1;},
+        }
+    }
+    let result = AnalyzerResult {
+        pass,
+        fail,
+        error,
+        analysis_results,
+    };
+
+    result
+}
+
 #[derive(Debug, Serialize)]
 pub struct Analysis<'a> {
     pub ip: &'a IpAddr,

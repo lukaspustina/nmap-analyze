@@ -21,7 +21,7 @@ pub mod nmap;
 pub mod output;
 pub mod portspec;
 
-pub use analyze::{Analyzer, AnalyzerResult, Analysis, AnalysisResult};
+pub use analyze::{Analyzer, AnalyzerResult, Analysis, AnalysisResult, default_analysis};
 pub use mapping::Mapping;
 pub use nmap::Run;
 pub use portspec::PortSpecs;

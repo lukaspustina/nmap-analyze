@@ -20,10 +20,7 @@ error_chain!{
         }
     }
     links {
-        Mapping(mapping::Error, mapping::ErrorKind);
-        Nmap(nmap::Error, nmap::ErrorKind);
         Output(output::Error, output::ErrorKind);
-        Portspec(portspec::Error, portspec::ErrorKind);
     }
 }
 
@@ -43,7 +40,7 @@ struct Args {
     #[structopt(short = "p", long = "portspec", parse(from_os_str))]
     portspec: PathBuf,
     /// Select output format
-    #[structopt(short = "o", long = "output", default_value = "human", raw(possible_values = r#"&["human", "json"]"#))]
+    #[structopt(short = "o", long = "output", default_value = "human", raw(possible_values = r#"&["human", "json", "none"]"#))]
     output_format: OutputFormat,
     /// Select output detail level for human output
     #[structopt(long = "output-detail", default_value = "fail", raw(possible_values = r#"&["fail", "all"]"#))]
@@ -77,11 +74,13 @@ fn setup(name: &str, args: &Args) {
     clams::console::set_color(!args.no_color);
 
     let level: Level = args.verbosity.into();
-    eprintln!("{} version={}, log level={:?}",
-        name,
-        env!("CARGO_PKG_VERSION"),
-        &level
-    );
+    if !args.silent {
+        eprintln!("{} version={}, log level={:?}",
+            name,
+            env!("CARGO_PKG_VERSION"),
+            &level
+        );
+    }
 
     let log_config = LogConfig::new(
       std::io::stderr(),
@@ -110,9 +109,20 @@ fn run_nmap_analyze<T: AsRef<Path>>(nmap_file: T, mapping_file: T, portspecs_fil
     info!("Loading nmap file");
     let nmap_run = Run::from_file(nmap_file.as_ref())
         .chain_err(|| ErrorKind::InvalidFile)?;
+    info!("Checking nmap sanity");
+    let _ = nmap_run.is_sane()
+        .chain_err(|| ErrorKind::InvalidFile)?;
 
     info!("Analyzing");
     let analyzer_result = default_analysis(&nmap_run, &mapping, &portspecs);
+    debug!("{:#?}", analyzer_result);
+
+    info!("Outputting results"); // Don't bail just because there is an output problem.
+    if let Err(x) = output(output_config, &analyzer_result) {
+        error!("Output failed because {}", x);
+    }
+
+    info!("Summarizing");
     if !silent {
         println!("Analyzer result summary: {}={}, {}={}, {}={}",
             "passed".green(),
@@ -123,64 +133,37 @@ fn run_nmap_analyze<T: AsRef<Path>>(nmap_file: T, mapping_file: T, portspecs_fil
             analyzer_result.error,
         );
     }
-    debug!("{:#?}", analyzer_result);
-
-    info!("Outputting results");
-    output(output_config, &analyzer_result)?;
 
     match analyzer_result {
         AnalyzerResult{ fail: 0, error: 0, .. } => {
             Ok(0)
         },
         AnalyzerResult{ fail: x, error: 0, .. } if x > 0 => {
-            Ok(1)
+            Ok(11)
         },
         AnalyzerResult{ error: x, .. } if x > 0 => {
-            Ok(10)
+            Ok(12)
         },
         AnalyzerResult{ .. } => {
             error!("This not possible and just to satify the compiler");
-            Ok(100)
+            Ok(13)
         },
     }
-}
-
-fn default_analysis<'a>(nmap_run: &'a Run, mapping: &'a Mapping, portspecs: &'a PortSpecs) -> AnalyzerResult<'a> {
-    let analyzer = Analyzer::new(&nmap_run, &mapping, &portspecs);
-    let analysis_results = analyzer.analyze();
-
-    let mut pass = 0;
-    let mut fail = 0;
-    let mut error = 0;
-    for ar in &analysis_results {
-        match ar.result {
-            AnalysisResult::Pass => {pass = pass + 1;},
-            AnalysisResult::Fail => {fail = fail + 1;},
-            AnalysisResult::Error{ reason: _ } => {error = error + 1;},
-        }
-    }
-    let result = AnalyzerResult {
-        pass,
-        fail,
-        error,
-        analysis_results,
-    };
-
-    result
 }
 
 fn output(output_config: &OutputConfig, analyzer_result: &AnalyzerResult) -> Result<()> {
     match output_config.format {
+        OutputFormat::Human => {
+            use nmap_analyze::output::HumanOutput;
+            analyzer_result.output_tty(output_config)
+        },
         OutputFormat::Json => {
             use nmap_analyze::output::JsonOutput;
             let stdout = ::std::io::stdout();
             let mut writer = stdout.lock();
             analyzer_result.output(output_config, &mut writer)
         },
-        OutputFormat::Human => {
-            use nmap_analyze::output::HumanOutput;
-            analyzer_result.output_tty(output_config)
-        },
+        OutputFormat::None => Ok(()),
     }.map_err(|e| e.into())
 }
 

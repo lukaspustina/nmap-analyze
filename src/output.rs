@@ -28,6 +28,7 @@ error_chain!{
 pub enum OutputFormat {
     Human,
     Json,
+    None,
 }
 
 impl FromStr for OutputFormat {
@@ -36,6 +37,7 @@ impl FromStr for OutputFormat {
         match s.to_lowercase().as_ref()  {
             "human" => Ok(OutputFormat::Human),
             "json" => Ok(OutputFormat::Json),
+            "none" => Ok(OutputFormat::None),
             _ => Err(ErrorKind::InvalidOutputFormat(s.to_string()).into())
         }
     }
