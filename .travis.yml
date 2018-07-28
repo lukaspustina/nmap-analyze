@@ -70,4 +70,18 @@ after_success: |
     cd ../.. &&
     echo "Built Debian Package."
   fi
-
+before_deploy: |
+  echo "Running before each single deployment..."
+  echo "Run before each single deployment."
+deploy:
+  - provider: releases
+    api_key:
+      secure: hadvNsv7qyrRD2KzvxlmRQE7v363ZpbdoIurf9JSfydTmwmSKsuUe+jsuv5OBTCUd/eoHBLnHdRcFNM7dXROH/Dhg4MBnNAJJP0+DEjTCUxLpV2xNkYJijaqt6rw8ZAWPGXBttz6+/2ug5xDSjtxIXYmE23F6gabkgNBbZF0X+s0EnoZXEEgWPtvNQ9Qdik/bNZbWs3OB7oYEopO+KGctelz7SHfYTFW6K9UYAaYvrsHZnYdHu2x3EcyLhOag2Af5loyi7ZvFvoeswCvkMhsGVh+IuDuD6FSnw4apG6vQaN3LFCMZqjLJ0WMAEPMeFA/OPl3ltoUP/GFvwvu3ft2j48tyP0t2TvYT0g+WgjuczkMmon18ZWBN1fh0OLvsm7XaCRYRIhDXuidyivT7mI2/W/QfG+HiOij4g303xqNepWbR/IxSb6CLTZbDSYec5SSOttspEom4fsnH4mYhYiu/FKdHwfiWiHdeyw8Lql5y2BLaE/IIneYdG2nN701AR+qlo5AJendHDSQrfhF02LQCO1Q2wIxfwO5H9MGYnKK6RWJCJH2X/dfv2xRCX6lC8tnrpK/knISvsbYVom7eATQ9cpFJn3poomnxisTVwSuHI9JgzhX8pdDe0DbeIdga9BnrFc1e21uZeweJgqO7T2LAlmY8kL0qbQhW5ynvICZzDw=
+    file_glob: true
+    file: "target/release/$CRATE_NAME-$TRAVIS_TAG-$TARGET.gz"
+    skip_cleanup: true
+    on:
+      tags: true
+      condition:
+      - "$DEPLOY_GITHUB"
+      - "$TRAVIS_TAG"
