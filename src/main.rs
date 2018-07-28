@@ -9,8 +9,8 @@ extern crate structopt;
 
 use clams::prelude::*;
 use nmap_analyze::*;
+use nmap_analyze::output::{OutputConfig, OutputDetail, OutputFormat};
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use structopt::StructOpt;
 
 error_chain!{
@@ -18,53 +18,12 @@ error_chain!{
         InvalidFile {
             description("Failed to load invalid file")
         }
-        InvalidOutputType(reason: String) {
-            description("Invalid output type selected")
-            display("Invalid output type '{}' selected", reason)
-        }
-        InvalidOutputDetail(reason: String) {
-            description("Invalid output detail selected")
-            display("Invalid output detail '{}' selected", reason)
-        }
     }
     links {
         Mapping(mapping::Error, mapping::ErrorKind);
         Nmap(nmap::Error, nmap::ErrorKind);
+        Output(output::Error, output::ErrorKind);
         Portspec(portspec::Error, portspec::ErrorKind);
-    }
-}
-
-#[derive(Debug)]
-enum OutputType {
-    Human,
-    Json,
-}
-
-impl FromStr for OutputType {
-    type Err = Error;
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-        match s.to_lowercase().as_ref()  {
-            "human" => Ok(OutputType::Human),
-            "json" => Ok(OutputType::Json),
-            _ => Err(ErrorKind::InvalidOutputType(s.to_string()).into())
-        }
-    }
-}
-
-#[derive(Debug)]
-enum OutputDetail {
-    Fail,
-    All,
-}
-
-impl FromStr for OutputDetail {
-    type Err = Error;
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-        match s.to_lowercase().as_ref()  {
-            "fail" => Ok(OutputDetail::Fail),
-            "all" => Ok(OutputDetail::All),
-            _ => Err(ErrorKind::InvalidOutputDetail(s.to_string()).into())
-        }
     }
 }
 
@@ -83,15 +42,18 @@ struct Args {
     /// Portspec file
     #[structopt(short = "p", long = "portspec", parse(from_os_str))]
     portspec: PathBuf,
-    /// Select output format type
+    /// Select output format
     #[structopt(short = "o", long = "output", default_value = "human", raw(possible_values = r#"&["human", "json"]"#))]
-    output: OutputType,
-    /// Select output detail level
+    output_format: OutputFormat,
+    /// Select output detail level for human output
     #[structopt(long = "output-detail", default_value = "fail", raw(possible_values = r#"&["fail", "all"]"#))]
     output_detail: OutputDetail,
     /// Do not use colored output
     #[structopt(long = "no-color")]
     no_color: bool,
+    /// Silencium; use this for json output
+    #[structopt(short = "s", long = "silent")]
+    silent: bool,
     /// Verbose mode (-v, -vv, -vvv, etc.)
     #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
     verbosity: u64,
@@ -102,7 +64,13 @@ fn run() -> Result<i32> {
     setup("nmap_analyze", &args);
     debug!("args = {:#?}", args);
 
-    run_nmap_analyze(&args.nmap, &args.mapping, &args.portspec)
+    let output_config = OutputConfig {
+        detail: args.output_detail,
+        format: args.output_format,
+        color: !args.no_color,
+    };
+
+    run_nmap_analyze(&args.nmap, &args.mapping, &args.portspec, &output_config, args.silent)
 }
 
 fn setup(name: &str, args: &Args) {
@@ -132,7 +100,7 @@ fn setup(name: &str, args: &Args) {
       .expect("Failed to initialize logging");
 }
 
-fn run_nmap_analyze<T: AsRef<Path>>(nmap_file: T, mapping_file: T, portspecs_file: T) -> Result<i32> {
+fn run_nmap_analyze<T: AsRef<Path>>(nmap_file: T, mapping_file: T, portspecs_file: T, output_config: &OutputConfig, silent: bool) -> Result<i32> {
     info!("Loading port specification file");
     let portspecs = PortSpecs::from_file(portspecs_file.as_ref())
         .chain_err(|| ErrorKind::InvalidFile)?;
@@ -143,14 +111,22 @@ fn run_nmap_analyze<T: AsRef<Path>>(nmap_file: T, mapping_file: T, portspecs_fil
     let nmap_run = Run::from_file(nmap_file.as_ref())
         .chain_err(|| ErrorKind::InvalidFile)?;
 
+    info!("Analyzing");
     let analyzer_result = default_analysis(&nmap_run, &mapping, &portspecs);
-    info!("Analysis finished.");
-    println!("Analyzer result summary: pass={}, failed={}, errors={}",
-          analyzer_result.pass,
-          analyzer_result.fail,
-          analyzer_result.error,
-    );
+    if !silent {
+        println!("Analyzer result summary: {}={}, {}={}, {}={}",
+            "passed".green(),
+            analyzer_result.pass,
+            "failed".red(),
+            analyzer_result.fail,
+            "errored".red(),
+            analyzer_result.error,
+        );
+    }
     debug!("{:#?}", analyzer_result);
+
+    info!("Outputting results");
+    output(output_config, &analyzer_result)?;
 
     match analyzer_result {
         AnalyzerResult{ fail: 0, error: 0, .. } => {
@@ -167,14 +143,6 @@ fn run_nmap_analyze<T: AsRef<Path>>(nmap_file: T, mapping_file: T, portspecs_fil
             Ok(100)
         },
     }
-}
-
-#[derive(Debug)]
-struct AnalyzerResult<'a> {
-    pass: usize,
-    fail: usize,
-    error: usize,
-    analysis_results: Vec<Analysis<'a>>
 }
 
 fn default_analysis<'a>(nmap_run: &'a Run, mapping: &'a Mapping, portspecs: &'a PortSpecs) -> AnalyzerResult<'a> {
@@ -199,6 +167,21 @@ fn default_analysis<'a>(nmap_run: &'a Run, mapping: &'a Mapping, portspecs: &'a 
     };
 
     result
+}
+
+fn output(output_config: &OutputConfig, analyzer_result: &AnalyzerResult) -> Result<()> {
+    match output_config.format {
+        OutputFormat::Json => {
+            use nmap_analyze::output::JsonOutput;
+            let stdout = ::std::io::stdout();
+            let mut writer = stdout.lock();
+            analyzer_result.output(output_config, &mut writer)
+        },
+        OutputFormat::Human => {
+            use nmap_analyze::output::HumanOutput;
+            analyzer_result.output_tty(output_config)
+        },
+    }.map_err(|e| e.into())
 }
 
 quick_main!(run);

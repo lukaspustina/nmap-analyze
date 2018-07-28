@@ -3,6 +3,7 @@ extern crate clams;
 extern crate error_chain;
 #[macro_use]
 extern crate log;
+extern crate prettytable;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -17,9 +18,10 @@ extern crate spectral;
 pub mod analyze;
 pub mod mapping;
 pub mod nmap;
+pub mod output;
 pub mod portspec;
 
-pub use analyze::{Analyzer, Analysis, AnalysisResult};
+pub use analyze::{Analyzer, AnalyzerResult, Analysis, AnalysisResult};
 pub use mapping::Mapping;
 pub use nmap::Run;
 pub use portspec::PortSpecs;

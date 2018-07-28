@@ -12,8 +12,17 @@ static IMPLICIT_CLOSED_PORTSPEC: &portspec::Port = &portspec::Port {
 };
 
 #[derive(Debug, Serialize)]
+pub struct AnalyzerResult<'a> {
+    pub pass: usize,
+    pub fail: usize,
+    pub error: usize,
+    pub analysis_results: Vec<Analysis<'a>>
+}
+
+#[derive(Debug, Serialize)]
 pub struct Analysis<'a> {
     pub ip: &'a IpAddr,
+    pub portspec_name: Option<&'a str>,
     pub result: AnalysisResult,
     pub port_results: Vec<PortAnalysisResult>,
 }
@@ -65,10 +74,11 @@ impl<'a> Analyzer<'a> {
             .iter()
             .map(|(ip, host)| {
                 match self.portspec_by_ip.get(ip) {
-                    Some(wl) => analyze_host(ip, host, wl),
+                    Some(ps) => analyze_host(ip, host, ps),
                     None => Analysis {
                         ip,
-                        result: AnalysisResult::Error{reason: "No port spec found for this IP address".to_owned()},
+                        portspec_name: None,
+                        result: AnalysisResult::Error{reason: "no port spec found for this IP address".to_owned()},
                         port_results: Vec::new(),
                     }
                 }
@@ -131,7 +141,7 @@ fn portspecs_to_portspec_by_name(portspecs: &PortSpecs) -> BTreeMap<&str, &ports
 fn analyze_host<'a>(
     ip: &'a IpAddr,
     host: &nmap::Host,
-    portspec: &portspec::PortSpec,
+    portspec: &'a portspec::PortSpec,
 ) -> Analysis<'a> {
     let mut unscanned_ps_ports: HashSet<u16> =
         HashSet::from_iter(portspec.ports.iter().map(|x| x.id));
@@ -205,6 +215,7 @@ fn analyze_host<'a>(
 
     Analysis {
         ip,
+        portspec_name: Some(&portspec.name),
         result,
         port_results: ports,
     }
@@ -248,9 +259,9 @@ mod tests {
 
         assert_that(&analysis).has_length(2);
         let res0 = &analysis[0];
-        assert_that!(&res0.result).is_equal_to(AnalysisResult::Error{reason: "No port spec found for this IP address".to_owned()});
+        assert_that!(&res0.result).is_equal_to(AnalysisResult::Error{reason: "no port spec found for this IP address".to_owned()});
         let res1 = &analysis[1];
-        assert_that!(&res1.result).is_equal_to(AnalysisResult::Error{reason: "No port spec found for this IP address".to_owned()});
+        assert_that!(&res1.result).is_equal_to(AnalysisResult::Error{reason: "no port spec found for this IP address".to_owned()});
     }
 
     #[test]
