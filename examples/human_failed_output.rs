@@ -6,8 +6,7 @@ use nmap_analyze::*;
 
 use spectral::prelude::*;
 
-#[test]
-fn run_nmap_analyze_human_failed_output() {
+fn main() {
     let expected_output = r##"
 +-------------+----------+--------+------+-------------+-----------------------------+
 | Host        | Portspec | Result | Port | Port Result | Failue Reason               |

@@ -11,6 +11,7 @@ build:
 
 test:
 	cargo test --all --no-fail-fast
+	cargo run --example human_failed_output
 
 docs: man
 	
