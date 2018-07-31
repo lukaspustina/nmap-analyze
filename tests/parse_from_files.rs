@@ -26,6 +26,16 @@ mod nmap {
         let run = res.unwrap();
         assert_that(&run.is_sane()).is_ok();
     }
+
+    #[test]
+    fn read_serde_xml_rs_issue_55_file() {
+        let file = Path::new("tests/nmap-result-parser_failed-55.xml");
+        let res = Run::from_file(file);
+
+        assert_that(&res).is_ok();
+        let run = res.unwrap();
+        assert_that(&run.is_sane()).is_ok();
+    }
 }
 
 mod mapping {
