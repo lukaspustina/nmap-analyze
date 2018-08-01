@@ -119,7 +119,9 @@ impl<'a> Analyzer<'a> {
 fn run_to_scanned_hosts_by_ip(nmap_run: &Run) -> BTreeMap<&IpAddr, &nmap::Host> {
     let mut shbi = BTreeMap::new();
     for host in &nmap_run.hosts {
-        shbi.insert(&host.address.addr, host);
+        if let nmap::RunElement::Host(host) = host {
+            shbi.insert(&host.address.addr, host);
+        }
     }
 
     shbi
@@ -830,7 +832,7 @@ mod tests {
             },
         };
 
-        let hosts = vec![host1, host3];
+        let hosts = vec![RunElement::Host(host1), RunElement::Host(host3)];
 
         Run {
             scanner: "nmap".to_owned(),

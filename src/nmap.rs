@@ -34,8 +34,8 @@ pub struct Run {
     pub args: String,
     #[serde(deserialize_with = "from_str")]
     pub start: u64,
-    #[serde(rename = "host")]
-    pub hosts: Vec<Host>,
+    #[serde(rename = "$value")]
+    pub hosts: Vec<RunElement>,
 }
 
 impl FromStr for Run {
@@ -74,7 +74,9 @@ impl SanityCheck for Run {
         }
 
         for host in &self.hosts {
-            host.is_sane()?;
+            if let RunElement::Host(host) = host {
+                host.is_sane()?;
+            }
         }
 
         Ok(())
@@ -86,6 +88,51 @@ impl Run {
         self.args.contains("-dd")
     }
 }
+
+// cf. ELEMENT nmaprun in nmap.dtd
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RunElement {
+    ScanInfo(StructInfo),
+    Verbose(Verbose),
+    Debugging(Debugging),
+    Target(Target),
+    TaskBegin(TaskBegin),
+    TaskProgress(TaskProgress),
+    TaskEnd(TaskEnd),
+    Prescript(Prescript),
+    Postscript(Postscript),
+    Host(Host),
+    Output(Output),
+    RunStats(RunStats),
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StructInfo {}
+
+#[derive(Debug, Deserialize)]
+pub struct Verbose {}
+
+#[derive(Debug, Deserialize)]
+pub struct Debugging {}
+
+#[derive(Debug, Deserialize)]
+pub struct Target {}
+
+#[derive(Debug, Deserialize)]
+pub struct TaskBegin {}
+
+#[derive(Debug, Deserialize)]
+pub struct TaskProgress {}
+
+#[derive(Debug, Deserialize)]
+pub struct TaskEnd {}
+
+#[derive(Debug, Deserialize)]
+ pub struct Prescript {}
+
+#[derive(Debug, Deserialize)]
+pub struct Postscript {}
 
 #[derive(Debug, Deserialize)]
 pub struct Host {
@@ -101,6 +148,12 @@ pub struct Host {
     pub hostnames: HostNames,
     pub ports: Ports,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct Output {}
+
+#[derive(Debug, Deserialize)]
+pub struct RunStats {}
 
 impl SanityCheck for Host {
     type Error = Error;
