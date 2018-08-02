@@ -17,6 +17,7 @@ codecov = { repository = "lukaspustina/nmap-analyze", branch = "master", service
 clams = "^0.0.13"
 error-chain = "^0.12"
 log = "^0.4"
+itertools = "^0.7"
 prettytable-rs = "^0.7"
 serde = "^1.0"
 serde_derive = "^1.0"
