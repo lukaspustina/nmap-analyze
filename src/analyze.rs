@@ -789,20 +789,20 @@ mod tests {
         mapping::Mapping {
             mappings: vec![
                 Host {
-                    id: "i-0".to_owned(),
-                    hostname: "ec2-192.168.0.1".to_owned(),
+                    id: Some("i-0".to_owned()),
+                    hostname: Some("ec2-192.168.0.1".to_owned()),
                     ips: vec!["192.168.0.1".parse().unwrap()],
-                    name: "Group A server".to_owned(),
+                    name: Some("Group A server".to_owned()),
                     port_spec: "Group A".to_owned(),
                 },
                 Host {
-                    id: "i-0".to_owned(),
-                    hostname: "ec2-192.168.0.3".to_owned(),
+                    id: Some("i-0".to_owned()),
+                    hostname: Some("ec2-192.168.0.3".to_owned()),
                     ips: vec![
                         "192.168.0.3".parse().unwrap(),
                         "192.168.0.3".parse().unwrap(),
                     ],
-                    name: "Group B server".to_owned(),
+                    name: Some("Group B server".to_owned()),
                     port_spec: "Group B".to_owned(),
                 },
             ],

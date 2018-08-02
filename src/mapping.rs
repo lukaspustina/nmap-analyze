@@ -39,11 +39,11 @@ impl FromFile for Mapping {}
 
 #[derive(Debug, Deserialize)]
 pub struct Host {
-    pub id: String,
-    pub hostname: String,
+    pub id: Option<String>,
+    pub hostname: Option<String>,
     #[serde(deserialize_with = "vec_ip_addr")]
     pub ips: Vec<IpAddr>,
-    pub name: String,
+    pub name: Option<String>,
     #[serde(rename = "portspec")]
     pub port_spec: String,
 }

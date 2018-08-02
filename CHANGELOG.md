@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+Made all struct fields but `ips` and `port_spec` optional in `mapping::Host`
 
 # [0.2.0] - 2018-08-02
 
