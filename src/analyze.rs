@@ -119,9 +119,7 @@ impl<'a> Analyzer<'a> {
 fn run_to_scanned_hosts_by_ip(nmap_run: &Run) -> BTreeMap<&IpAddr, &nmap::Host> {
     let mut shbi = BTreeMap::new();
     for host in &nmap_run.hosts {
-        if let nmap::RunElement::Host(host) = host {
-            shbi.insert(&host.address.addr, host);
-        }
+        shbi.insert(&host.address.addr, host);
     }
 
     shbi
@@ -179,7 +177,6 @@ fn analyze_host<'a>(
 
     let mut ports: Vec<PortAnalysisResult> = host
         .ports
-        .ports
         .iter()
         .map(|port| {
             // Remove the current port from the unscanned, explicitly specified ports.
@@ -196,7 +193,7 @@ fn analyze_host<'a>(
                     state: portspec::PortState::Open,
                     ..
                 }
-                    if port.state.state == nmap::PortStatus::Open =>
+                    if port.status == nmap::PortStatus::Open =>
                 {
                     PortAnalysisResult::Pass(port.id)
                 }
@@ -208,7 +205,7 @@ fn analyze_host<'a>(
                     state: portspec::PortState::Closed,
                     ..
                 }
-                    if port.state.state != nmap::PortStatus::Open =>
+                    if port.status != nmap::PortStatus::Open =>
                 {
                     PortAnalysisResult::Pass(port.id)
                 }
@@ -323,59 +320,49 @@ mod tests {
                 reason_ttl: 0,
             },
             address: Address { addr: ip.clone() },
-            hostnames: HostNames {
-                hostnames: vec![HostName {
-                    name: format!("{}", ip),
-                    typ: HostNameType::User,
-                }],
-            },
-            ports: Ports {
-                extra_ports: None,
-                ports: vec![
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 22,
-                        state: PortState {
-                            state: PortStatus::Closed,
-                            reason: "reset".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "ssh".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+            hostnames: vec![HostName {
+                name: format!("{}", ip),
+                typ: HostNameType::User,
+            }],
+            ports: vec![
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 22,
+                    status: PortStatus::Closed,
+                    reason: "reset".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "ssh".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 25,
-                        state: PortState {
-                            state: PortStatus::Open,
-                            reason: "syn-ack".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "smtp".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+                },
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 25,
+                    status: PortStatus::Open,
+                    reason: "syn-ack".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "smtp".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 443,
-                        state: PortState {
-                            state: PortStatus::Closed,
-                            reason: "reset".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "https".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+                },
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 443,
+                    status: PortStatus::Closed,
+                    reason: "reset".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "https".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                ],
-            },
+                },
+            ],
+            extra_ports: None,
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
@@ -410,59 +397,49 @@ mod tests {
                 reason_ttl: 0,
             },
             address: Address { addr: ip.clone() },
-            hostnames: HostNames {
-                hostnames: vec![HostName {
-                    name: format!("{}", ip),
-                    typ: HostNameType::User,
-                }],
-            },
-            ports: Ports {
-                extra_ports: None,
-                ports: vec![
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 22,
-                        state: PortState {
-                            state: PortStatus::Closed,
-                            reason: "reset".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "ssh".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+            hostnames: vec![HostName {
+                name: format!("{}", ip),
+                typ: HostNameType::User,
+            }],
+            ports:vec![
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 22,
+                    status: PortStatus::Closed,
+                    reason: "reset".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "ssh".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 25,
-                        state: PortState {
-                            state: PortStatus::Closed,
-                            reason: "reset".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "smtp".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+                },
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 25,
+                    status: PortStatus::Closed,
+                    reason: "reset".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "smtp".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 443,
-                        state: PortState {
-                            state: PortStatus::Closed,
-                            reason: "reset".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "https".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+                },
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 443,
+                    status: PortStatus::Closed,
+                    reason: "reset".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "https".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                ],
-            },
+                },
+            ],
+            extra_ports: None,
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
@@ -497,45 +474,37 @@ mod tests {
                 reason_ttl: 0,
             },
             address: Address { addr: ip.clone() },
-            hostnames: HostNames {
-                hostnames: vec![HostName {
-                    name: format!("{}", ip),
-                    typ: HostNameType::User,
-                }],
-            },
-            ports: Ports {
-                extra_ports: None,
-                ports: vec![
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 22,
-                        state: PortState {
-                            state: PortStatus::Closed,
-                            reason: "reset".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "ssh".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+            hostnames: vec![HostName {
+                name: format!("{}", ip),
+                typ: HostNameType::User,
+            }],
+            ports: vec![
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 22,
+                    status: PortStatus::Closed,
+                    reason: "reset".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "ssh".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 443,
-                        state: PortState {
-                            state: PortStatus::Closed,
-                            reason: "reset".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "https".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+                },
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 443,
+                    status: PortStatus::Closed,
+                    reason: "reset".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "https".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                ],
-            },
+                },
+            ],
+            extra_ports: None,
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
@@ -581,59 +550,49 @@ mod tests {
                 reason_ttl: 0,
             },
             address: Address { addr: ip.clone() },
-            hostnames: HostNames {
-                hostnames: vec![HostName {
-                    name: format!("{}", ip),
-                    typ: HostNameType::User,
-                }],
-            },
-            ports: Ports {
-                extra_ports: None,
-                ports: vec![
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 22,
-                        state: PortState {
-                            state: PortStatus::Closed,
-                            reason: "reset".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "ssh".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+            hostnames:vec![HostName {
+                name: format!("{}", ip),
+                typ: HostNameType::User,
+            }],
+            ports: vec![
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 22,
+                    status: PortStatus::Closed,
+                    reason: "reset".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "ssh".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 25,
-                        state: PortState {
-                            state: PortStatus::Open,
-                            reason: "syn-ack".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "smtp".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+                },
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 25,
+                    status: PortStatus::Open,
+                    reason: "syn-ack".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "smtp".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 443,
-                        state: PortState {
-                            state: PortStatus::Open,
-                            reason: "syn-ack".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "https".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+                },
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 443,
+                    status: PortStatus::Open,
+                    reason: "syn-ack".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "https".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                ],
-            },
+                },
+            ],
+            extra_ports: None,
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
@@ -725,59 +684,49 @@ mod tests {
             address: Address {
                 addr: "192.168.0.1".parse().unwrap(),
             },
-            hostnames: HostNames {
-                hostnames: vec![HostName {
-                    name: "192.168.0.1".to_owned(),
-                    typ: HostNameType::User,
-                }],
-            },
-            ports: Ports {
-                extra_ports: None,
-                ports: vec![
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 25,
-                        state: PortState {
-                            state: PortStatus::Open,
-                            reason: "syn-ack".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "smtp".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+            hostnames:vec![HostName {
+                name: "192.168.0.1".to_owned(),
+                typ: HostNameType::User,
+            }],
+            ports: vec![
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 25,
+                    status: PortStatus::Open,
+                    reason: "syn-ack".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "smtp".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 80,
-                        state: PortState {
-                            state: PortStatus::Closed,
-                            reason: "reset".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "http".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+                },
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 80,
+                    status: PortStatus::Closed,
+                    reason: "reset".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "http".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 443,
-                        state: PortState {
-                            state: PortStatus::Open,
-                            reason: "syn-ack".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "https".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+                },
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 443,
+                    status: PortStatus::Open,
+                    reason: "syn-ack".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "https".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                ],
-            },
+                },
+            ],
+            extra_ports: None,
         };
 
         let host3 = Host {
@@ -791,48 +740,40 @@ mod tests {
             address: Address {
                 addr: "192.168.0.3".parse().unwrap(),
             },
-            hostnames: HostNames {
-                hostnames: vec![HostName {
-                    name: "192.168.0.3".to_owned(),
-                    typ: HostNameType::User,
-                }],
-            },
-            ports: Ports {
-                extra_ports: None,
-                ports: vec![
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 80,
-                        state: PortState {
-                            state: PortStatus::Open,
-                            reason: "reset".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "http".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+            hostnames: vec![HostName {
+                name: "192.168.0.3".to_owned(),
+                typ: HostNameType::User,
+            }],
+            ports: vec![
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 80,
+                    status: PortStatus::Open,
+                    reason: "reset".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "http".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                    Port {
-                        protocol: "tcp".to_owned(),
-                        id: 443,
-                        state: PortState {
-                            state: PortStatus::Open,
-                            reason: "syn-ack".to_owned(),
-                            reason_ttl: 244,
-                        },
-                        service: PortService {
-                            name: "https".to_owned(),
-                            method: "table".to_owned(),
-                            conf: 3,
-                        },
+                },
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 443,
+                    status: PortStatus::Open,
+                    reason: "syn-ack".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "https".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
                     },
-                ],
-            },
+                },
+            ],
+            extra_ports: None,
         };
 
-        let hosts = vec![RunElement::Host(host1), RunElement::Host(host3)];
+        let hosts = vec![host1, host3];
 
         Run {
             scanner: "nmap".to_owned(),

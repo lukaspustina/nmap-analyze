@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+Refactoring of nmap parser
+
+### Fixed
+Fixed parser bug for long nmap xml files containing intermediate task tags; cf. #1.
+
 # [0.1.0] - 2018-07-28
 
 First release
