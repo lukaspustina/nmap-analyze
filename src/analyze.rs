@@ -11,34 +11,26 @@ static IMPLICIT_CLOSED_PORTSPEC: &portspec::Port = &portspec::Port {
     state: portspec::PortState::Closed,
 };
 
-#[derive(Debug, Serialize)]
-pub struct AnalyzerResult<'a> {
-    pub pass: usize,
-    pub fail: usize,
-    pub error: usize,
-    pub analysis_results: Vec<Analysis<'a>>,
-}
-
 pub fn default_analysis<'a>(
     nmap_run: &'a Run,
     mapping: &'a Mapping,
     portspecs: &'a PortSpecs,
 ) -> AnalyzerResult<'a> {
     let analyzer = Analyzer::new(&nmap_run, &mapping, &portspecs);
-    let analysis_results = analyzer.analyze();
+    let host_analysis_results = analyzer.analyze_hosts();
 
     let mut pass = 0;
     let mut fail = 0;
     let mut error = 0;
-    for ar in &analysis_results {
-        match ar.result {
-            AnalysisResult::Pass => {
+    for ar in &host_analysis_results {
+        match ar.summary {
+            HostAnalysisSummary::Pass => {
                 pass += 1;
             }
-            AnalysisResult::Fail => {
+            HostAnalysisSummary::Fail => {
                 fail += 1;
             }
-            AnalysisResult::Error { .. } => {
+            HostAnalysisSummary::Error { .. } => {
                 error += 1;
             }
         }
@@ -48,20 +40,20 @@ pub fn default_analysis<'a>(
         pass,
         fail,
         error,
-        analysis_results,
+        host_analysis_results,
     }
 }
 
 #[derive(Debug, Serialize)]
-pub struct Analysis<'a> {
+pub struct HostAnalysisResult<'a> {
     pub ip: &'a IpAddr,
     pub portspec_name: Option<&'a str>,
-    pub result: AnalysisResult,
+    pub summary: HostAnalysisSummary,
     pub port_results: Vec<PortAnalysisResult>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
-pub enum AnalysisResult {
+pub enum HostAnalysisSummary {
     Pass,
     Fail,
     Error { reason: String },
@@ -98,15 +90,15 @@ impl<'a> Analyzer<'a> {
         }
     }
 
-    pub fn analyze(&self) -> Vec<Analysis<'a>> {
+    pub fn analyze_hosts(&self) -> Vec<HostAnalysisResult<'a>> {
         self.scanned_host_by_ip
             .iter()
             .map(|(ip, host)| match self.portspec_by_ip.get(ip) {
                 Some(ps) => analyze_host(ip, host, ps),
-                None => Analysis {
+                None => HostAnalysisResult {
                     ip,
                     portspec_name: None,
-                    result: AnalysisResult::Error {
+                    summary: HostAnalysisSummary::Error {
                         reason: "no port spec found for this IP address".to_owned(),
                     },
                     port_results: Vec::new(),
@@ -171,7 +163,7 @@ fn analyze_host<'a>(
     ip: &'a IpAddr,
     host: &nmap::Host,
     portspec: &'a portspec::PortSpec,
-) -> Analysis<'a> {
+) -> HostAnalysisResult<'a> {
     let mut unscanned_ps_ports: HashSet<u16> =
         HashSet::from_iter(portspec.ports.iter().map(|x| x.id));
 
@@ -235,18 +227,26 @@ fn analyze_host<'a>(
             _ => true,
         })
         .count();
-    let result = if failed > 0 {
-        AnalysisResult::Fail
+    let summary = if failed > 0 {
+        HostAnalysisSummary::Fail
     } else {
-        AnalysisResult::Pass
+        HostAnalysisSummary::Pass
     };
 
-    Analysis {
+    HostAnalysisResult {
         ip,
         portspec_name: Some(&portspec.name),
-        result,
+        summary,
         port_results: ports,
     }
+}
+
+#[derive(Debug, Serialize)]
+pub struct AnalyzerResult<'a> {
+    pub pass: usize,
+    pub fail: usize,
+    pub error: usize,
+    pub host_analysis_results: Vec<HostAnalysisResult<'a>>,
 }
 
 #[cfg(test)]
@@ -280,16 +280,16 @@ mod tests {
         let mapping = mapping_data();
 
         let analyzer = Analyzer::new(&nmap, &mapping, &portspecs);
-        let analysis = analyzer.analyze();
+        let analysis = analyzer.analyze_hosts();
         println!("Analysis: {:?}", analysis);
 
         assert_that(&analysis).has_length(2);
         let res0 = &analysis[0];
-        assert_that!(&res0.result).is_equal_to(AnalysisResult::Error {
+        assert_that!(&res0.summary).is_equal_to(HostAnalysisSummary::Error {
             reason: "no port spec found for this IP address".to_owned(),
         });
         let res1 = &analysis[1];
-        assert_that!(&res1.result).is_equal_to(AnalysisResult::Error {
+        assert_that!(&res1.summary).is_equal_to(HostAnalysisSummary::Error {
             reason: "no port spec found for this IP address".to_owned(),
         });
     }
@@ -368,7 +368,7 @@ mod tests {
         let analysis = analyze_host(&ip, &host, &portspec);
         println!("Analysis: {:?}", analysis);
 
-        assert_that!(&analysis.result).is_equal_to(AnalysisResult::Pass);
+        assert_that!(&analysis.summary).is_equal_to(HostAnalysisSummary::Pass);
     }
 
     #[test]
@@ -445,7 +445,7 @@ mod tests {
         let analysis = analyze_host(&ip, &host, &portspec);
         println!("Analysis: {:?}", analysis);
 
-        assert_that!(&analysis.result).is_equal_to(AnalysisResult::Fail);
+        assert_that!(&analysis.summary).is_equal_to(HostAnalysisSummary::Fail);
     }
 
     #[test]
@@ -511,8 +511,8 @@ mod tests {
         println!("Analysis: {:?}", analysis);
 
         asserting("Scan fails because an explicit port has not been scanned")
-            .that(&analysis.result)
-            .is_equal_to(AnalysisResult::Fail);
+            .that(&analysis.summary)
+            .is_equal_to(HostAnalysisSummary::Fail);
 
         let ports = &analysis.port_results;
         let unscanned: Vec<_> = ports
@@ -599,8 +599,8 @@ mod tests {
         println!("Analysis: {:?}", analysis);
 
         asserting("Scan fails because an implicit port is open")
-            .that(&analysis.result)
-            .is_equal_to(AnalysisResult::Fail);
+            .that(&analysis.summary)
+            .is_equal_to(HostAnalysisSummary::Fail);
 
         let ports = &analysis.port_results;
         let unscanned: Vec<_> = ports
@@ -659,15 +659,15 @@ mod tests {
         let portspecs = portspecs_data();
 
         let analyzer = Analyzer::new(&nmap, &mapping, &portspecs);
-        let analysis_results = analyzer.analyze();
+        let analysis_results = analyzer.analyze_hosts();
 
         assert_that!(&analysis_results).has_length(2);
         let res0 = analysis_results.get(0);
         assert_that!(&res0).is_some();
-        assert_that!(&res0.unwrap().result).is_equal_to(AnalysisResult::Fail);
+        assert_that!(&res0.unwrap().summary).is_equal_to(HostAnalysisSummary::Fail);
         let res1 = analysis_results.get(1);
         assert_that!(&res1).is_some();
-        assert_that!(&res1.unwrap().result).is_equal_to(AnalysisResult::Pass);
+        assert_that!(&res1.unwrap().summary).is_equal_to(HostAnalysisSummary::Pass);
     }
 
     fn nmap_data() -> nmap::Run {

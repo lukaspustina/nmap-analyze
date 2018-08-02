@@ -1,4 +1,4 @@
-use analyze::{AnalysisResult, AnalyzerResult, PortAnalysisReason, PortAnalysisResult};
+use analyze::{HostAnalysisSummary, AnalyzerResult, PortAnalysisReason, PortAnalysisResult};
 
 use prettytable::cell::Cell;
 use prettytable::row::Row;
@@ -122,18 +122,18 @@ impl<'a> AnalyzerResult<'a> {
             Cell::new("Failue Reason"),
         ]));
 
-        for a in &self.analysis_results {
-            if output_config.detail == OutputDetail::Fail && a.result == AnalysisResult::Pass {
+        for a in &self.host_analysis_results {
+            if output_config.detail == OutputDetail::Fail && a.summary == HostAnalysisSummary::Pass {
                 continue;
             }
             let row = Row::new(vec![
                 Cell::new(ip_addr_to_string(a.ip).as_ref()),
                 Cell::new(a.portspec_name.unwrap_or("")),
-                analysis_result_to_cell(&a.result),
+                analysis_result_to_cell(&a.summary),
                 Cell::new(""),
                 Cell::new(""),
-                match a.result {
-                    AnalysisResult::Error { ref reason } => Cell::new(reason),
+                match a.summary {
+                    HostAnalysisSummary::Error { ref reason } => Cell::new(reason),
                     _ => Cell::new(""),
                 },
             ]);
@@ -165,11 +165,11 @@ fn ip_addr_to_string(ip_addr: &IpAddr) -> String {
     format!("{}", ip_addr)
 }
 
-fn analysis_result_to_cell(result: &AnalysisResult) -> Cell {
+fn analysis_result_to_cell(result: &HostAnalysisSummary) -> Cell {
     match result {
-        AnalysisResult::Pass => Cell::new("Pass").with_style(Attr::ForegroundColor(color::GREEN)),
-        AnalysisResult::Fail => Cell::new("Fail").with_style(Attr::ForegroundColor(color::RED)),
-        AnalysisResult::Error { .. } => {
+        HostAnalysisSummary::Pass => Cell::new("Pass").with_style(Attr::ForegroundColor(color::GREEN)),
+        HostAnalysisSummary::Fail => Cell::new("Fail").with_style(Attr::ForegroundColor(color::RED)),
+        HostAnalysisSummary::Error { .. } => {
             Cell::new("Error").with_style(Attr::ForegroundColor(color::RED))
         }
     }
