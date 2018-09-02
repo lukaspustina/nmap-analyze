@@ -91,6 +91,4 @@ aws ec2 describe-instances --filters 'Name=instance-state-name,Values=running' -
 ## Todos
 
 1. Fill Readme
-1. Add man page
-1. Add brew receipe
 
