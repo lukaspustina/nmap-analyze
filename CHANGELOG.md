@@ -6,8 +6,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+# [0.2.1] - 2018-09-04
+
 ### Changed
-Made all struct fields but `ips` and `port_spec` optional in `mapping::Host`
+- Made all struct fields but `ips` and `port_spec` optional in `mapping::Host`
+- Fixed a typo in human output
 
 # [0.2.0] - 2018-08-02
 
@@ -22,7 +25,8 @@ Fixed parser bug for long nmap xml files containing intermediate task tags; cf. 
 
 First release
 
-[Unreleased]: https://github.com/lukaspustina/nmap-analyze/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/lukaspustina/nmap-analyze/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/lukaspustina/nmap-analyze/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/lukaspustina/nmap-analyze/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/lukaspustina/nmap-analyze/compare/v0.0.2...v0.1.0
 
