@@ -9,7 +9,7 @@ use spectral::prelude::*;
 fn main() {
     let expected_output = r##"
 +-------------+----------+--------+------+-------------+-----------------------------+
-| Host        | Portspec | Result | Port | Port Result | Failue Reason               |
+| Host        | Portspec | Result | Port | Port Result | Failure Reason              |
 +-------------+----------+--------+------+-------------+-----------------------------+
 | 192.168.0.1 | Group A  | Fail   |      |             |                             |
 |             |          |        | 22   | failed      | expected Closed, found Open |

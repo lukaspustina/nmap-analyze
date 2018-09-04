@@ -119,7 +119,7 @@ impl<'a> AnalyzerResult<'a> {
             Cell::new("Result"),
             Cell::new("Port"),
             Cell::new("Port Result"),
-            Cell::new("Failue Reason"),
+            Cell::new("Failure Reason"),
         ]));
 
         for a in &self.host_analysis_results {
