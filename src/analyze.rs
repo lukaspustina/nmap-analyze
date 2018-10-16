@@ -61,7 +61,7 @@ pub enum HostAnalysisSummary {
 
 #[derive(Debug, PartialEq, Serialize)]
 pub enum PortAnalysisResult {
-    Pass(u16),
+    Pass(u16, PortAnalysisReason),
     Fail(u16, PortAnalysisReason),
     NotScanned(u16),
     Unknown(u16),
@@ -69,7 +69,11 @@ pub enum PortAnalysisResult {
 
 #[derive(Debug, PartialEq, Serialize)]
 pub enum PortAnalysisReason {
+    OpenAndOpen, // Should be open and has been found to be open
     OpenButClosed, // Should have been open, but was found to be closed
+    MaybeAndOpen, // Should be open or closed, and has been found to be open
+    MaybeAndClosed, // Should be open or closed, and has been found to be closed
+    ClosedAndClosed, // Should be closed and has been found to be closed
     ClosedButOpen, // Should have been cloed, but was found to be open
     Unknown,
 }
@@ -148,7 +152,7 @@ fn portspecs_to_portspec_by_name(portspecs: &PortSpecs) -> BTreeMap<&str, &ports
 /// This methods analyses the nmap port scanning results for a specific host. It uses the portspec of the group the hosts is mapped to.
 ///
 /// First, we must check that the explicitly specified port specs are met, i.e., if the specified ports
-/// are closed or open respectively. This step may have three different results for each specified
+/// are closed, maybe closed or open, or open respectively. This step may have three different results for each specified
 /// port: 1. The port state is as expected, 2. the port state it _not_ as expected, and 3. the port
 /// has not be scanned.
 ///
@@ -181,30 +185,18 @@ fn analyze_host<'a>(
                 &IMPLICIT_CLOSED_PORTSPEC
             };
             let par = match ps_port {
-                portspec::Port {
-                    state: portspec::PortState::Open,
-                    ..
-                }
-                    if port.status == nmap::PortStatus::Open =>
-                {
-                    PortAnalysisResult::Pass(port.id)
-                }
-                portspec::Port {
-                    state: portspec::PortState::Open,
-                    ..
-                } => PortAnalysisResult::Fail(port.id, PortAnalysisReason::OpenButClosed),
-                portspec::Port {
-                    state: portspec::PortState::Closed,
-                    ..
-                }
-                    if port.status != nmap::PortStatus::Open =>
-                {
-                    PortAnalysisResult::Pass(port.id)
-                }
-                portspec::Port {
-                    state: portspec::PortState::Closed,
-                    ..
-                } => PortAnalysisResult::Fail(port.id, PortAnalysisReason::ClosedButOpen),
+                portspec::Port { state: portspec::PortState::Open, ..  } if port.status == nmap::PortStatus::Open =>
+                    PortAnalysisResult::Pass(port.id, PortAnalysisReason::OpenAndOpen),
+                portspec::Port { state: portspec::PortState::Open, ..  } =>
+                    PortAnalysisResult::Fail(port.id, PortAnalysisReason::OpenButClosed),
+                portspec::Port { state: portspec::PortState::Maybe, ..  } if port.status == nmap::PortStatus::Open =>
+                    PortAnalysisResult::Pass(port.id, PortAnalysisReason::MaybeAndOpen),
+                portspec::Port { state: portspec::PortState::Maybe, ..  } =>
+                    PortAnalysisResult::Pass(port.id, PortAnalysisReason::MaybeAndClosed),
+                portspec::Port { state: portspec::PortState::Closed, ..  } if port.status != nmap::PortStatus::Open =>
+                    PortAnalysisResult::Pass(port.id, PortAnalysisReason::ClosedAndClosed),
+                portspec::Port { state: portspec::PortState::Closed, ..  } =>
+                    PortAnalysisResult::Fail(port.id, PortAnalysisReason::ClosedButOpen),
             };
             trace!("Result for host {}, port {} is {:?}", ip, port.id, par);
             par
@@ -223,7 +215,7 @@ fn analyze_host<'a>(
     let failed = ports
         .iter()
         .filter(|x| match x {
-            PortAnalysisResult::Pass(_) => false,
+            PortAnalysisResult::Pass(_, _) => false,
             _ => true,
         })
         .count();
@@ -609,6 +601,123 @@ mod tests {
             .collect();
         asserting("Port 443 is open").that(&unscanned).has_length(1);
     }
+
+        #[test]
+    fn analyze_host_maybe_port_open() {
+        let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
+        let portspec = portspec::PortSpec {
+            name: "Group A".to_owned(),
+            ports: vec![
+                portspec::Port {
+                    id: 25,
+                    state: portspec::PortState::Maybe,
+                },
+            ],
+        };
+        use nmap::*;
+        let host = Host {
+            starttime: 1531991145,
+            endtime: 1531991167,
+            status: HostStatus {
+                state: HostState::Up,
+                reason: "user-set".to_owned(),
+                reason_ttl: 0,
+            },
+            address: Address { addr: ip.clone() },
+            hostnames:vec![HostName {
+                name: format!("{}", ip),
+                typ: HostNameType::User,
+            }],
+            ports: vec![
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 25,
+                    status: PortStatus::Open,
+                    reason: "syn-ack".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "smtp".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
+                    },
+                },
+            ],
+            extra_ports: None,
+        };
+
+        let analysis = analyze_host(&ip, &host, &portspec);
+        println!("Analysis: {:?}", analysis);
+
+        asserting("Scan succeeds because a maybe port is open")
+            .that(&analysis.summary)
+            .is_equal_to(HostAnalysisSummary::Pass);
+
+        let ports = &analysis.port_results;
+        let unscanned: Vec<_> = ports
+            .iter()
+            .filter(|x| *x == &PortAnalysisResult::Pass(25u16, PortAnalysisReason::MaybeAndOpen))
+            .collect();
+        asserting("Port 25 is maybe open").that(&unscanned).has_length(1);
+    }
+
+    #[test]
+    fn analyze_host_maybe_port_closed() {
+        let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
+        let portspec = portspec::PortSpec {
+            name: "Group A".to_owned(),
+            ports: vec![
+                portspec::Port {
+                    id: 25,
+                    state: portspec::PortState::Maybe,
+                },
+            ],
+        };
+        use nmap::*;
+        let host = Host {
+            starttime: 1531991145,
+            endtime: 1531991167,
+            status: HostStatus {
+                state: HostState::Up,
+                reason: "user-set".to_owned(),
+                reason_ttl: 0,
+            },
+            address: Address { addr: ip.clone() },
+            hostnames:vec![HostName {
+                name: format!("{}", ip),
+                typ: HostNameType::User,
+            }],
+            ports: vec![
+                Port {
+                    protocol: "tcp".to_owned(),
+                    id: 25,
+                    status: PortStatus::Closed,
+                    reason: "reset".to_owned(),
+                    reason_ttl: 244,
+                    service: PortService {
+                        name: "smtp".to_owned(),
+                        method: "table".to_owned(),
+                        conf: 3,
+                    },
+                },
+            ],
+            extra_ports: None,
+        };
+
+        let analysis = analyze_host(&ip, &host, &portspec);
+        println!("Analysis: {:?}", analysis);
+
+        asserting("Scan succeeds because a maybe port is closed")
+            .that(&analysis.summary)
+            .is_equal_to(HostAnalysisSummary::Pass);
+
+        let ports = &analysis.port_results;
+        let unscanned: Vec<_> = ports
+            .iter()
+            .filter(|x| *x == &PortAnalysisResult::Pass(25u16, PortAnalysisReason::MaybeAndClosed))
+            .collect();
+        asserting("Port 25 is maybe closed").that(&unscanned).has_length(1);
+    }
+
 
     #[test]
     fn run_to_scanned_hosts_by_ip_okay() {

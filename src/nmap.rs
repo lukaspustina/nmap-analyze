@@ -1,5 +1,4 @@
 use super::{from_str, FromFile, SanityCheck};
-use itertools::Itertools;
 
 use std::net::IpAddr;
 use std::str::FromStr;

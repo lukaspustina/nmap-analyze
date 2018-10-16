@@ -5,7 +5,7 @@ portspecs:
       - id: 22
         state: closed
       - id: 25
-        state: open
+        state: maybe
   - name: Group B
     ports:
       - id: 80

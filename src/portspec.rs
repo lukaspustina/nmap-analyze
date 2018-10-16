@@ -55,7 +55,11 @@ pub struct Port {
 
 #[derive(Debug)]
 pub enum PortState {
+    /// The Port is expected to be closed.
     Closed,
+    /// The Port might be either open or closed.
+    Maybe,
+    /// The Port is expected to be open.
     Open,
 }
 
@@ -66,6 +70,7 @@ impl FromStr for PortState {
         let s = s.trim().to_lowercase();
         match s.as_ref() {
             "closed" => Ok(PortState::Closed),
+            "maybe" => Ok(PortState::Maybe),
             "open" => Ok(PortState::Open),
             _ => Err(Error::from_kind(ErrorKind::InvalidPortState(s))),
         }
@@ -87,7 +92,7 @@ portspecs:
       - id: 22
         state: closed
       - id: 25
-        state: open
+        state: maybe
   - name: Group B
     ports:
       - id: 80

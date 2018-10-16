@@ -140,7 +140,7 @@ impl<'a> AnalyzerResult<'a> {
             table.add_row(row);
 
             for p in &a.port_results {
-                if let PortAnalysisResult::Pass(_) = p {
+                if let PortAnalysisResult::Pass(_, _) = p {
                     if output_config.detail == OutputDetail::Fail {
                         continue;
                     }
@@ -177,7 +177,7 @@ fn analysis_result_to_cell(result: &HostAnalysisSummary) -> Cell {
 
 fn port_analysis_result_to_port_string(result: &PortAnalysisResult) -> String {
     let port = match result {
-        PortAnalysisResult::Pass(x) => x,
+        PortAnalysisResult::Pass(x, _) => x,
         PortAnalysisResult::Fail(x, _) => x,
         PortAnalysisResult::NotScanned(x) => x,
         PortAnalysisResult::Unknown(x) => x,
@@ -187,7 +187,7 @@ fn port_analysis_result_to_port_string(result: &PortAnalysisResult) -> String {
 
 fn port_analysis_result_to_port_result_cell(result: &PortAnalysisResult) -> Cell {
     match result {
-        PortAnalysisResult::Pass(_) => {
+        PortAnalysisResult::Pass(_, _) => {
             Cell::new("passed").with_style(Attr::ForegroundColor(color::GREEN))
         }
         PortAnalysisResult::Fail(_, _) => {
@@ -204,7 +204,14 @@ fn port_analysis_result_to_port_result_cell(result: &PortAnalysisResult) -> Cell
 
 fn port_analysis_result_to_port_result_reason(result: &PortAnalysisResult) -> String {
     match result {
-        PortAnalysisResult::Pass(_) => "",
+        PortAnalysisResult::Pass(_, PortAnalysisReason::OpenAndOpen) => "",
+        PortAnalysisResult::Pass(_, PortAnalysisReason::ClosedAndClosed) => "",
+        PortAnalysisResult::Pass(_, PortAnalysisReason::MaybeAndOpen) =>
+            "maybe Open, found Open",
+        PortAnalysisResult::Pass(_, PortAnalysisReason::MaybeAndClosed) =>
+            "maybe Open, found Closed",
+        PortAnalysisResult::Pass(_, _) =>
+            "passed but unexpected result",
         PortAnalysisResult::Fail(_, PortAnalysisReason::OpenButClosed) => {
             "expected Open, found Closed"
         }
@@ -212,6 +219,8 @@ fn port_analysis_result_to_port_result_reason(result: &PortAnalysisResult) -> St
             "expected Closed, found Open"
         }
         PortAnalysisResult::Fail(_, PortAnalysisReason::Unknown) => "unknown",
+        PortAnalysisResult::Fail(_, _) =>
+            "failed because unexpected result",
         PortAnalysisResult::NotScanned(_) => "",
         PortAnalysisResult::Unknown(_) => "",
     }.to_owned()
