@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added 
 Adds 'maybe' as a port specification option. Fixes #2.
 
+### Changed
+Bumps minimum Rust version to 1.29 to make use of `std::Iter::Flatten`.
+
 # [0.2.1] - 2018-09-04
 
 ### Changed
