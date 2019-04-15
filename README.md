@@ -102,7 +102,7 @@ A port scan usually only probes a limited set of ports instead of scanning all 6
 
 ## Demo
 
-<p align="center"><script src="https://asciinema.org/a/240985.js" id="asciicast-240985" async data-size="small" data-theme="monokai"></script></p>
+[![asciicast](https://asciinema.org/a/240985.png)](https://asciinema.org/a/240985)
 
 ## Installation
 
