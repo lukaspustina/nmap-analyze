@@ -4,19 +4,19 @@ Analyzes nmap XML output and compares results with expected specification.
 
 [![Linux and macOS Build Status](https://travis-ci.org/lukaspustina/nmap-analyze.svg?branch=master)](https://travis-ci.org/lukaspustina/nmap-analyze) [![codecov](https://codecov.io/gh/lukaspustina/nmap-analyze/branch/master/graph/badge.svg)](https://codecov.io/gh/lukaspustina/nmap-analyze) [![GitHub release](https://img.shields.io/github/release/lukaspustina/nmap-analyze.svg)](https://github.com/lukaspustina/nmap-analyze/releases) [![](https://img.shields.io/crates/v/nmap-analyze.svg)](https://crates.io/crates/nmap-analyze) [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg?label=License)](./LICENSE)
 
-[nmap](https://nmap.org) is highly sophisticated and widely used port scanner. It scan a single host or a group of hosts for open TCP and UDP ports. This allows administrators to verify firewall and host port filter configuration. `nmap-analyze` is a very simplistic tool that helps to ease this verification process. Basically, it takes nmap's scan results as XML and compares the open as well as closed ports for each host scanned to a specification in YAML and reports all deviations. `nmap-analyze` supports both, human readable as well as JSON output. The later can be used for post-processing.
+[nmap](https://nmap.org) is a highly sophisticated and widely used port scanner. It scans a single host or a group of hosts for open TCP and UDP ports. This allows administrators to verify firewall and port filter configurations. `nmap-analyze` is a very simplistic tool that helps to ease this verification process. Basically, it takes nmap's scan results as XML, compares these results for each host scanned with a specification, and reports all deviations. `nmap-analyze` supports both, human readable as well as JSON output. The later can be used for further post-processing.
 
-We use run a large number of virtual machines and scan their public IP address daily. By using `nmap-analyze` we can quickly parse the plethora of port scan results and compare them to our expectations. In this way, a misconfiguration of firewalls, security groups, and service settings are quickly discovered before somebody out there can exploit it. 
+We run a large number of virtual machines and scan their public IP address daily. By using `nmap-analyze` we can quickly parse the plethora of port scan results and compare them to our expectations. In this way, a misconfiguration of firewalls, security groups, and service settings is quickly discovered before somebody out there can exploit it. 
 
 
 ## Basic Usage
 
-`nmap-analyze` needs three informations: 1. nmap scan results in XML format, 2. a mapping of IP addresses to ports specifications, and 3. the port specifications. The mapping allows you to define groups of hosts that are mapped to the same specification. 
+`nmap-analyze` needs three inputs: 1. nmap scan results in XML format, 2. a mapping of IP addresses to ports specifications, and 3. the port specifications. The mapping allows you to define groups of hosts that are mapped to the same port specification. 
 
 
 ### Run nmap
 
-`nmap-analyze` requires nmap to create an XML output file and to run in debug 2 mode (`-dd`). The debug mode forces nmap to write result for each port; not just the "interesting" ports. For example, you can scan the host with IP address `192.168.0.1` in debug 2 mode (`-dd`), no DNS resolution (`-n`), TCP SYN scan (`-sS`), and XML output to file (`-oX nmap-results.xml`) like this:
+`nmap-analyze` requires nmap to create an XML output file and to run in debug 2 mode (`-dd`). The debug mode forces nmap to write results for each port; not just "interesting" ports. For example, you can scan the host with IP address `192.168.0.1` in debug 2 mode (`-dd`), no DNS resolution (`-n`), using TCP SYN scan mode (`-sS`), and XML output to file (`-oX nmap-results.xml`) like this:
 
 ```bash
 sudo nmap -dd -n -sS -oX nmap-results.xml 192.168.0.1
