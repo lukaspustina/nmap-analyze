@@ -11,14 +11,14 @@
             "hostname": "ec2-192.168.0.2",
             "id": "i-1",
             "ips": ["192.168.0.2"],
-            "name": "Group B server",
-            "portspec": "Group A"
+            "name": "Group B server 02",
+            "portspec": "Group B"
         },
         {
             "hostname": "ec2-192.168.0.3",
             "id": "i-2",
             "ips": ["192.168.0.3", "192.168.0.4"],
-            "name": "Group A server",
+            "name": "Group B server 02",
             "portspec": "Group B"
         }
     ]
