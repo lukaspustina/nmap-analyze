@@ -6,6 +6,10 @@ portspecs:
         state: closed
       - id: 25
         state: maybe
+      - id: 81
+        state: open
+      - id: 444
+        state: open
   - name: Group B
     ports:
       - id: 80

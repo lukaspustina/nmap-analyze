@@ -1,10 +1,8 @@
 extern crate clams;
 #[macro_use]
 extern crate error_chain;
-#[macro_use]
 extern crate log;
 extern crate nmap_analyze;
-#[macro_use]
 extern crate structopt;
 
 use clams::prelude::*;
@@ -68,7 +66,7 @@ struct Args {
 
 fn run() -> Result<i32> {
     let args = Args::from_args();
-    setup("nmap_analyze", &args);
+    setup("nmap-analyze", &args);
     debug!("args = {:#?}", args);
 
     let output_config = OutputConfig {

@@ -14,8 +14,10 @@ fn main() {
 | 192.168.0.1 | Group A  | Fail   |      |             |                             |
 |             |          |        | 22   | failed      | expected Closed, found Open |
 |             |          |        | 80   | failed      | expected Closed, found Open |
+|             |          |        | 81   | failed      | expected Open, found Closed |
 |             |          |        | 139  | failed      | expected Closed, found Open |
 |             |          |        | 443  | failed      | expected Closed, found Open |
+|             |          |        | 444  | failed      | expected Open, found Closed |
 |             |          |        | 445  | failed      | expected Closed, found Open |
 |             |          |        | 465  | failed      | expected Closed, found Open |
 |             |          |        | 587  | failed      | expected Closed, found Open |
