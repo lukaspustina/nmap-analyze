@@ -95,10 +95,7 @@ pub struct Host {
     pub starttime: usize,
     pub endtime: usize,
     pub status: HostStatus,
-    /// A host may have multiple address. For example, if the host is part of the same broadcast
-    /// domain, i.e., on the same LAN, the MAC address is saved as well. Since we currently only
-    /// scan remote targets, we ignore this special case for now.
-    pub address: Address,
+    pub addresses: Vec<Address>,
     pub hostnames: Vec<HostName>,
     pub ports: Vec<Port>,
     pub extra_ports: Option<Vec<ExtraPorts>>,
@@ -111,7 +108,7 @@ impl From<parser::Host> for Host {
            starttime: p_host.starttime,
            endtime: p_host.endtime,
            status: p_host.status,
-           address: p_host.address,
+           addresses: p_host.addresses,
            hostnames: p_host.hostnames.hostnames,
            ports,
            extra_ports: p_host.ports.extra_ports,
@@ -128,6 +125,19 @@ impl SanityCheck for Host {
                 "Host has extraports defined; use nmap -dd ...".to_owned(),
             )));
         }
+        if self.addresses.is_empty() {
+            return Err(Error::from_kind(ErrorKind::InsaneNmapFile(
+                "Host has no addresses".to_owned(),
+            )));
+        }
+        if !self.addresses.iter().any(|addr| match addr {
+            Address::IpV4{..} => true,
+            _ => false,
+        }) {
+            return Err(Error::from_kind(ErrorKind::InsaneNmapFile(
+                "Host has no IP address".to_owned(),
+            )));
+        }
 
         Ok(())
     }
@@ -140,9 +150,17 @@ impl Host {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Address {
-    #[serde(deserialize_with = "from_str")]
-    pub addr: IpAddr,
+#[serde(tag = "addrtype")]
+pub enum Address {
+    #[serde(rename = "ipv4")]
+    IpV4 {
+        #[serde(deserialize_with = "from_str")]
+        addr: IpAddr,
+    },
+    #[serde(rename = "mac")]
+    Mac {
+        addr: String,
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -362,10 +380,8 @@ mod parser {
         #[serde(deserialize_with = "from_str")]
         pub endtime: usize,
         pub status: HostStatus,
-        /// A host may have multiple address. For example, if the host is part of the same broadcast
-        /// domain, i.e., on the same LAN, the MAC address is saved as well. Since we currently only
-        /// scan remote targets, we ignore this special case for now.
-        pub address: Address,
+        #[serde(rename = "address")]
+        pub addresses: Vec<Address>,
         pub hostnames: HostNames,
         pub ports: Ports,
     }
@@ -452,7 +468,6 @@ mod parser {
         }
 
         #[test]
-        #[ignore] // cf. `Host#Address`
         fn parse_host_with_multiple_addresses() {
             let s = r##"
         <host starttime="1531991145" endtime="1531991167">
@@ -483,7 +498,10 @@ mod parser {
         </host>
       "##;
 
-            let _host: parser::Host = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
+            let p_host: parser::Host = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
+            let host: Host = p_host.into();
+
+            assert_that(&host.is_sane()).is_err();
         }
 
         #[test]

@@ -1,5 +1,5 @@
 use mapping::Mapping;
-use nmap::{self, Run};
+use nmap::{self, Run, Address};
 use portspec::{self, PortSpecs};
 
 use std::collections::{BTreeMap, HashSet};
@@ -115,7 +115,14 @@ impl<'a> Analyzer<'a> {
 fn run_to_scanned_hosts_by_ip(nmap_run: &Run) -> BTreeMap<&IpAddr, &nmap::Host> {
     let mut shbi = BTreeMap::new();
     for host in &nmap_run.hosts {
-        shbi.insert(&host.address.addr, host);
+        for address in &host.addresses {
+            match address {
+                Address::IpV4{ref addr} => {
+                    shbi.insert(addr, host);
+                },
+                _ => {},
+            }
+        }
     }
 
     shbi
@@ -273,7 +280,6 @@ mod tests {
 
         let analyzer = Analyzer::new(&nmap, &mapping, &portspecs);
         let analysis = analyzer.analyze_hosts();
-        println!("Analysis: {:?}", analysis);
 
         assert_that(&analysis).has_length(2);
         let res0 = &analysis[0];
@@ -311,7 +317,7 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            address: Address { addr: ip.clone() },
+            addresses: vec![Address::IpV4 { addr: ip.clone() }],
             hostnames: vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
@@ -388,7 +394,7 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            address: Address { addr: ip.clone() },
+            addresses: vec![Address::IpV4 { addr: ip.clone() }],
             hostnames: vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
@@ -465,7 +471,7 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            address: Address { addr: ip.clone() },
+            addresses: vec![Address::IpV4 { addr: ip.clone() }],
             hostnames: vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
@@ -541,7 +547,7 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            address: Address { addr: ip.clone() },
+            addresses: vec![Address::IpV4 { addr: ip.clone() }],
             hostnames:vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
@@ -623,7 +629,7 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            address: Address { addr: ip.clone() },
+            addresses: vec![Address::IpV4 { addr: ip.clone() }],
             hostnames:vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
@@ -681,7 +687,7 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            address: Address { addr: ip.clone() },
+            addresses: vec![Address::IpV4 { addr: ip.clone() }],
             hostnames:vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
@@ -790,10 +796,8 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            address: Address {
-                addr: "192.168.0.1".parse().unwrap(),
-            },
-            hostnames:vec![HostName {
+            addresses: vec![Address::IpV4 { addr: "192.168.0.1".parse().unwrap() }],
+            hostnames: vec![HostName {
                 name: "192.168.0.1".to_owned(),
                 typ: HostNameType::User,
             }],
@@ -846,9 +850,7 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            address: Address {
-                addr: "192.168.0.3".parse().unwrap(),
-            },
+            addresses: vec![Address::IpV4 { addr: "192.168.0.3".parse().unwrap() }],
             hostnames: vec![HostName {
                 name: "192.168.0.3".to_owned(),
                 typ: HostNameType::User,

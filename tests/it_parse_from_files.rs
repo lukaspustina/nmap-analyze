@@ -36,6 +36,16 @@ mod nmap {
         let run = res.unwrap();
         assert_that(&run.is_sane()).is_ok();
     }
+
+    #[test]
+    fn read_sane_file_with_mac_addr_issue_3() {
+        let file = Path::new("tests/nmap-mac_addresses.xml");
+        let res = Run::from_file(file);
+
+        assert_that(&res).is_ok();
+        let run = res.unwrap();
+        assert_that(&run.is_sane()).is_ok();
+    }
 }
 
 mod mapping {
