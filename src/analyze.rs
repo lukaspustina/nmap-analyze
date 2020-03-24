@@ -116,11 +116,8 @@ fn run_to_scanned_hosts_by_ip(nmap_run: &Run) -> BTreeMap<&IpAddr, &nmap::Host> 
     let mut shbi = BTreeMap::new();
     for host in &nmap_run.hosts {
         for address in &host.addresses {
-            match address {
-                Address::IpV4 { ref addr } => {
-                    shbi.insert(addr, host);
-                }
-                _ => {}
+            if let Address::IpV4{ ref addr } = address {
+                shbi.insert(addr, host);
             }
         }
     }

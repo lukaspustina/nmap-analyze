@@ -30,8 +30,7 @@ pub use portspec::PortSpecs;
 
 use serde::de::{self, Deserialize, Deserializer};
 use std::fmt::Display;
-use std::fs::File;
-use std::io::Read;
+use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -59,9 +58,7 @@ pub trait FromFile {
     ) -> ::std::result::Result<String, ::std::io::Error> {
         let path: &Path = path.as_ref();
 
-        let mut file = File::open(path)?;
-        let mut contents = String::new();
-        let _ = file.read_to_string(&mut contents)?;
+        let  contents = fs::read_to_string(path)?;
 
         Ok(contents)
     }
