@@ -11,7 +11,7 @@ use nmap_analyze::*;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
-error_chain!{
+error_chain! {
     errors {
         InvalidFile {
             description("Failed to load invalid file")
@@ -156,11 +156,7 @@ fn run_nmap_analyze<T: AsRef<Path>>(
         } => Ok(0),
         AnalyzerResult {
             fail: x, error: 0, ..
-        }
-            if x > 0 =>
-        {
-            Ok(11)
-        }
+        } if x > 0 => Ok(11),
         AnalyzerResult { error: x, .. } if x > 0 => Ok(12),
         AnalyzerResult { .. } => {
             error!("This not possible and just to satify the compiler");
@@ -182,7 +178,8 @@ fn output(output_config: &OutputConfig, analyzer_result: &AnalyzerResult) -> Res
             analyzer_result.output(output_config, &mut writer)
         }
         OutputFormat::None => Ok(()),
-    }.map_err(|e| e.into())
+    }
+    .map_err(|e| e.into())
 }
 
 quick_main!(run);

@@ -1,4 +1,4 @@
-use analyze::{HostAnalysisSummary, AnalyzerResult, PortAnalysisReason, PortAnalysisResult};
+use analyze::{AnalyzerResult, HostAnalysisSummary, PortAnalysisReason, PortAnalysisResult};
 
 use prettytable::cell::Cell;
 use prettytable::row::Row;
@@ -8,7 +8,7 @@ use std::io::Write;
 use std::net::IpAddr;
 use std::str::FromStr;
 
-error_chain!{
+error_chain! {
     errors {
         InvalidOutputFormat(reason: String) {
             description("invalid output format selected")
@@ -123,7 +123,8 @@ impl<'a> AnalyzerResult<'a> {
         ]));
 
         for a in &self.host_analysis_results {
-            if output_config.detail == OutputDetail::Fail && a.summary == HostAnalysisSummary::Pass {
+            if output_config.detail == OutputDetail::Fail && a.summary == HostAnalysisSummary::Pass
+            {
                 continue;
             }
             let row = Row::new(vec![
@@ -167,8 +168,12 @@ fn ip_addr_to_string(ip_addr: &IpAddr) -> String {
 
 fn analysis_result_to_cell(result: &HostAnalysisSummary) -> Cell {
     match result {
-        HostAnalysisSummary::Pass => Cell::new("Pass").with_style(Attr::ForegroundColor(color::GREEN)),
-        HostAnalysisSummary::Fail => Cell::new("Fail").with_style(Attr::ForegroundColor(color::RED)),
+        HostAnalysisSummary::Pass => {
+            Cell::new("Pass").with_style(Attr::ForegroundColor(color::GREEN))
+        }
+        HostAnalysisSummary::Fail => {
+            Cell::new("Fail").with_style(Attr::ForegroundColor(color::RED))
+        }
         HostAnalysisSummary::Error { .. } => {
             Cell::new("Error").with_style(Attr::ForegroundColor(color::RED))
         }
@@ -206,12 +211,11 @@ fn port_analysis_result_to_port_result_reason(result: &PortAnalysisResult) -> St
     match result {
         PortAnalysisResult::Pass(_, PortAnalysisReason::OpenAndOpen) => "",
         PortAnalysisResult::Pass(_, PortAnalysisReason::ClosedAndClosed) => "",
-        PortAnalysisResult::Pass(_, PortAnalysisReason::MaybeAndOpen) =>
-            "maybe Open, found Open",
-        PortAnalysisResult::Pass(_, PortAnalysisReason::MaybeAndClosed) =>
-            "maybe Open, found Closed",
-        PortAnalysisResult::Pass(_, _) =>
-            "passed but unexpected result",
+        PortAnalysisResult::Pass(_, PortAnalysisReason::MaybeAndOpen) => "maybe Open, found Open",
+        PortAnalysisResult::Pass(_, PortAnalysisReason::MaybeAndClosed) => {
+            "maybe Open, found Closed"
+        }
+        PortAnalysisResult::Pass(_, _) => "passed but unexpected result",
         PortAnalysisResult::Fail(_, PortAnalysisReason::OpenButClosed) => {
             "expected Open, found Closed"
         }
@@ -219,9 +223,9 @@ fn port_analysis_result_to_port_result_reason(result: &PortAnalysisResult) -> St
             "expected Closed, found Open"
         }
         PortAnalysisResult::Fail(_, PortAnalysisReason::Unknown) => "unknown",
-        PortAnalysisResult::Fail(_, _) =>
-            "failed because unexpected result",
+        PortAnalysisResult::Fail(_, _) => "failed because unexpected result",
         PortAnalysisResult::NotScanned(_) => "",
         PortAnalysisResult::Unknown(_) => "",
-    }.to_owned()
+    }
+    .to_owned()
 }

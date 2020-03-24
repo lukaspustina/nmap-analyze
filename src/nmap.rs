@@ -105,14 +105,14 @@ impl From<parser::Host> for Host {
     fn from(p_host: parser::Host) -> Host {
         let ports = p_host.ports.ports.into_iter().map(Port::from).collect();
         Host {
-           starttime: p_host.starttime,
-           endtime: p_host.endtime,
-           status: p_host.status,
-           addresses: p_host.addresses,
-           hostnames: p_host.hostnames.hostnames,
-           ports,
-           extra_ports: p_host.ports.extra_ports,
-       }
+            starttime: p_host.starttime,
+            endtime: p_host.endtime,
+            status: p_host.status,
+            addresses: p_host.addresses,
+            hostnames: p_host.hostnames.hostnames,
+            ports,
+            extra_ports: p_host.ports.extra_ports,
+        }
     }
 }
 
@@ -131,7 +131,7 @@ impl SanityCheck for Host {
             )));
         }
         if !self.addresses.iter().any(|addr| match addr {
-            Address::IpV4{..} => true,
+            Address::IpV4 { .. } => true,
             _ => false,
         }) {
             return Err(Error::from_kind(ErrorKind::InsaneNmapFile(
@@ -158,9 +158,7 @@ pub enum Address {
         addr: IpAddr,
     },
     #[serde(rename = "mac")]
-    Mac {
-        addr: String,
-    }
+    Mac { addr: String },
 }
 
 #[derive(Debug, Deserialize)]

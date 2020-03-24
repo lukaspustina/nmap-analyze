@@ -1,5 +1,5 @@
 use mapping::Mapping;
-use nmap::{self, Run, Address};
+use nmap::{self, Address, Run};
 use portspec::{self, PortSpecs};
 
 use std::collections::{BTreeMap, HashSet};
@@ -69,12 +69,12 @@ pub enum PortAnalysisResult {
 
 #[derive(Debug, PartialEq, Serialize)]
 pub enum PortAnalysisReason {
-    OpenAndOpen, // Should be open and has been found to be open
-    OpenButClosed, // Should have been open, but was found to be closed
-    MaybeAndOpen, // Should be open or closed, and has been found to be open
-    MaybeAndClosed, // Should be open or closed, and has been found to be closed
+    OpenAndOpen,     // Should be open and has been found to be open
+    OpenButClosed,   // Should have been open, but was found to be closed
+    MaybeAndOpen,    // Should be open or closed, and has been found to be open
+    MaybeAndClosed,  // Should be open or closed, and has been found to be closed
     ClosedAndClosed, // Should be closed and has been found to be closed
-    ClosedButOpen, // Should have been cloed, but was found to be open
+    ClosedButOpen,   // Should have been cloed, but was found to be open
     Unknown,
 }
 
@@ -117,10 +117,10 @@ fn run_to_scanned_hosts_by_ip(nmap_run: &Run) -> BTreeMap<&IpAddr, &nmap::Host> 
     for host in &nmap_run.hosts {
         for address in &host.addresses {
             match address {
-                Address::IpV4{ref addr} => {
+                Address::IpV4 { ref addr } => {
                     shbi.insert(addr, host);
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
     }
@@ -192,18 +192,36 @@ fn analyze_host<'a>(
                 &IMPLICIT_CLOSED_PORTSPEC
             };
             let par = match ps_port {
-                portspec::Port { state: portspec::PortState::Open, ..  } if port.status == nmap::PortStatus::Open =>
-                    PortAnalysisResult::Pass(port.id, PortAnalysisReason::OpenAndOpen),
-                portspec::Port { state: portspec::PortState::Open, ..  } =>
-                    PortAnalysisResult::Fail(port.id, PortAnalysisReason::OpenButClosed),
-                portspec::Port { state: portspec::PortState::Maybe, ..  } if port.status == nmap::PortStatus::Open =>
-                    PortAnalysisResult::Pass(port.id, PortAnalysisReason::MaybeAndOpen),
-                portspec::Port { state: portspec::PortState::Maybe, ..  } =>
-                    PortAnalysisResult::Pass(port.id, PortAnalysisReason::MaybeAndClosed),
-                portspec::Port { state: portspec::PortState::Closed, ..  } if port.status != nmap::PortStatus::Open =>
-                    PortAnalysisResult::Pass(port.id, PortAnalysisReason::ClosedAndClosed),
-                portspec::Port { state: portspec::PortState::Closed, ..  } =>
-                    PortAnalysisResult::Fail(port.id, PortAnalysisReason::ClosedButOpen),
+                portspec::Port {
+                    state: portspec::PortState::Open,
+                    ..
+                } if port.status == nmap::PortStatus::Open => {
+                    PortAnalysisResult::Pass(port.id, PortAnalysisReason::OpenAndOpen)
+                }
+                portspec::Port {
+                    state: portspec::PortState::Open,
+                    ..
+                } => PortAnalysisResult::Fail(port.id, PortAnalysisReason::OpenButClosed),
+                portspec::Port {
+                    state: portspec::PortState::Maybe,
+                    ..
+                } if port.status == nmap::PortStatus::Open => {
+                    PortAnalysisResult::Pass(port.id, PortAnalysisReason::MaybeAndOpen)
+                }
+                portspec::Port {
+                    state: portspec::PortState::Maybe,
+                    ..
+                } => PortAnalysisResult::Pass(port.id, PortAnalysisReason::MaybeAndClosed),
+                portspec::Port {
+                    state: portspec::PortState::Closed,
+                    ..
+                } if port.status != nmap::PortStatus::Open => {
+                    PortAnalysisResult::Pass(port.id, PortAnalysisReason::ClosedAndClosed)
+                }
+                portspec::Port {
+                    state: portspec::PortState::Closed,
+                    ..
+                } => PortAnalysisResult::Fail(port.id, PortAnalysisReason::ClosedButOpen),
             };
             trace!("Result for host {}, port {} is {:?}", ip, port.id, par);
             par
@@ -399,7 +417,7 @@ mod tests {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
             }],
-            ports:vec![
+            ports: vec![
                 Port {
                     protocol: "tcp".to_owned(),
                     id: 22,
@@ -548,7 +566,7 @@ mod tests {
                 reason_ttl: 0,
             },
             addresses: vec![Address::IpV4 { addr: ip.clone() }],
-            hostnames:vec![HostName {
+            hostnames: vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
             }],
@@ -608,17 +626,15 @@ mod tests {
         asserting("Port 443 is open").that(&unscanned).has_length(1);
     }
 
-        #[test]
+    #[test]
     fn analyze_host_maybe_port_open() {
         let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
         let portspec = portspec::PortSpec {
             name: "Group A".to_owned(),
-            ports: vec![
-                portspec::Port {
-                    id: 25,
-                    state: portspec::PortState::Maybe,
-                },
-            ],
+            ports: vec![portspec::Port {
+                id: 25,
+                state: portspec::PortState::Maybe,
+            }],
         };
         use nmap::*;
         let host = Host {
@@ -630,24 +646,22 @@ mod tests {
                 reason_ttl: 0,
             },
             addresses: vec![Address::IpV4 { addr: ip.clone() }],
-            hostnames:vec![HostName {
+            hostnames: vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
             }],
-            ports: vec![
-                Port {
-                    protocol: "tcp".to_owned(),
-                    id: 25,
-                    status: PortStatus::Open,
-                    reason: "syn-ack".to_owned(),
-                    reason_ttl: 244,
-                    service: PortService {
-                        name: "smtp".to_owned(),
-                        method: "table".to_owned(),
-                        conf: 3,
-                    },
+            ports: vec![Port {
+                protocol: "tcp".to_owned(),
+                id: 25,
+                status: PortStatus::Open,
+                reason: "syn-ack".to_owned(),
+                reason_ttl: 244,
+                service: PortService {
+                    name: "smtp".to_owned(),
+                    method: "table".to_owned(),
+                    conf: 3,
                 },
-            ],
+            }],
             extra_ports: None,
         };
 
@@ -663,7 +677,9 @@ mod tests {
             .iter()
             .filter(|x| *x == &PortAnalysisResult::Pass(25u16, PortAnalysisReason::MaybeAndOpen))
             .collect();
-        asserting("Port 25 is maybe open").that(&unscanned).has_length(1);
+        asserting("Port 25 is maybe open")
+            .that(&unscanned)
+            .has_length(1);
     }
 
     #[test]
@@ -671,12 +687,10 @@ mod tests {
         let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
         let portspec = portspec::PortSpec {
             name: "Group A".to_owned(),
-            ports: vec![
-                portspec::Port {
-                    id: 25,
-                    state: portspec::PortState::Maybe,
-                },
-            ],
+            ports: vec![portspec::Port {
+                id: 25,
+                state: portspec::PortState::Maybe,
+            }],
         };
         use nmap::*;
         let host = Host {
@@ -688,24 +702,22 @@ mod tests {
                 reason_ttl: 0,
             },
             addresses: vec![Address::IpV4 { addr: ip.clone() }],
-            hostnames:vec![HostName {
+            hostnames: vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
             }],
-            ports: vec![
-                Port {
-                    protocol: "tcp".to_owned(),
-                    id: 25,
-                    status: PortStatus::Closed,
-                    reason: "reset".to_owned(),
-                    reason_ttl: 244,
-                    service: PortService {
-                        name: "smtp".to_owned(),
-                        method: "table".to_owned(),
-                        conf: 3,
-                    },
+            ports: vec![Port {
+                protocol: "tcp".to_owned(),
+                id: 25,
+                status: PortStatus::Closed,
+                reason: "reset".to_owned(),
+                reason_ttl: 244,
+                service: PortService {
+                    name: "smtp".to_owned(),
+                    method: "table".to_owned(),
+                    conf: 3,
                 },
-            ],
+            }],
             extra_ports: None,
         };
 
@@ -721,9 +733,10 @@ mod tests {
             .iter()
             .filter(|x| *x == &PortAnalysisResult::Pass(25u16, PortAnalysisReason::MaybeAndClosed))
             .collect();
-        asserting("Port 25 is maybe closed").that(&unscanned).has_length(1);
+        asserting("Port 25 is maybe closed")
+            .that(&unscanned)
+            .has_length(1);
     }
-
 
     #[test]
     fn run_to_scanned_hosts_by_ip_okay() {
@@ -796,7 +809,9 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            addresses: vec![Address::IpV4 { addr: "192.168.0.1".parse().unwrap() }],
+            addresses: vec![Address::IpV4 {
+                addr: "192.168.0.1".parse().unwrap(),
+            }],
             hostnames: vec![HostName {
                 name: "192.168.0.1".to_owned(),
                 typ: HostNameType::User,
@@ -850,7 +865,9 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            addresses: vec![Address::IpV4 { addr: "192.168.0.3".parse().unwrap() }],
+            addresses: vec![Address::IpV4 {
+                addr: "192.168.0.3".parse().unwrap(),
+            }],
             hostnames: vec![HostName {
                 name: "192.168.0.3".to_owned(),
                 typ: HostNameType::User,
@@ -954,5 +971,4 @@ mod tests {
             ],
         }
     }
-
 }
