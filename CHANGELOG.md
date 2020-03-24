@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]  
 
+## [1.1.0] - 2020-03-24
+
+### Add
+Process multiple addresses per host and ignore MAC addresses.
+
 ## [1.0.0] - 2019-04-15
 
 ### Added 
