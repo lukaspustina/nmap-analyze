@@ -373,14 +373,16 @@ mod parser {
 
     #[derive(Debug, Deserialize)]
     pub struct Host {
-        #[serde(deserialize_with = "from_str")]
+        #[serde(deserialize_with = "from_str", default)]
         pub starttime: usize,
-        #[serde(deserialize_with = "from_str")]
+        #[serde(deserialize_with = "from_str", default)]
         pub endtime: usize,
         pub status: HostStatus,
         #[serde(rename = "address")]
         pub addresses: Vec<Address>,
+        #[serde(default)]
         pub hostnames: HostNames,
+        #[serde(default)]
         pub ports: Ports,
     }
 
@@ -390,17 +392,17 @@ mod parser {
     #[derive(Debug, Deserialize)]
     pub struct RunStats {}
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Default, Deserialize)]
     pub struct HostNames {
         #[serde(rename = "hostname", default)]
         pub hostnames: Vec<HostName>,
     }
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Default, Deserialize)]
     pub struct Ports {
         #[serde(rename = "extraports")]
         pub extra_ports: Option<Vec<ExtraPorts>>,
-        #[serde(rename = "port")]
+        #[serde(rename = "port", default)]
         pub ports: Vec<Port>,
     }
 
