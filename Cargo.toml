@@ -1,6 +1,6 @@
 [package]
 name = "nmap-analyze"
-version = "1.1.1"
+version = "1.1.2"
 authors = ["Lukas Pustina <lukas@pustina.net>"]
 description = "Analyzes nmap xml output and compares results with expected specification"
 repository = "https://github.com/lukaspustina/nmap-analyze.git"
@@ -17,7 +17,7 @@ codecov = { repository = "lukaspustina/nmap-analyze", branch = "master", service
 clams = "^0.0.13"
 error-chain = "^0.12"
 log = "^0.4"
-prettytable-rs = "^0.7"
+prettytable-rs = "^0.10"
 serde = "^1.0"
 serde_derive = "^1.0"
 serde_json = "^1.0"

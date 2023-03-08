@@ -1,7 +1,7 @@
 use analyze::{AnalyzerResult, HostAnalysisSummary, PortAnalysisReason, PortAnalysisResult};
 
-use prettytable::cell::Cell;
-use prettytable::row::Row;
+use prettytable::Cell;
+use prettytable::Row;
 use prettytable::{color, format, Attr, Table};
 use serde_json;
 use std::io::Write;
@@ -92,6 +92,7 @@ impl<'a> HumanOutput for AnalyzerResult<'a> {
         self.build_table(output_config)
             .print(writer)
             .chain_err(|| ErrorKind::OutputFailed)
+            .map(|_| ())
     }
 
     fn output_tty(&self, output_config: &OutputConfig) -> Result<()> {
@@ -104,6 +105,7 @@ impl<'a> HumanOutput for AnalyzerResult<'a> {
             self.build_table(output_config)
                 .print(&mut writer)
                 .chain_err(|| ErrorKind::OutputFailed)
+                .map(|_| ())
         }
     }
 }
