@@ -462,7 +462,7 @@ mod parser {
       "##;
 
             let p_host: parser::Host = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
-            let host: Host = p_host.into();
+            let host: super::super::Host = p_host.into();
 
             assert_that(&host.is_sane()).is_err();
         }
@@ -499,7 +499,7 @@ mod parser {
       "##;
 
             let p_host: parser::Host = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
-            let host: Host = p_host.into();
+            let host: super::super::Host = p_host.into();
 
             assert_that(&host.is_sane()).is_err();
         }
@@ -515,7 +515,7 @@ mod parser {
         fn no_dd_data_is_insane() {
             let s = NMAP_NO_DD_DATA;
             let p_run: parser::Run = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
-            let nmaprun: Run = p_run.into();
+            let nmaprun: super::super::Run = p_run.into();
 
             assert_that(&nmaprun.is_sane()).is_err();
         }
