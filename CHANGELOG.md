@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]  
 
+## [1.2.0] - 2026-05-01
+
+### Fixed
+- Migrate off vulnerable and unmaintained crates (clams, structopt, serde_yaml, serde-xml-rs 0.2, error-chain, spectral). Resolves 9 RUSTSEC advisories and 11 unmaintained/unsound/yanked warnings. Dependency count drops from 133 to 75. (8c7f574)
+
 ## [1.1.0] - 2020-03-24
 
 ### Add
