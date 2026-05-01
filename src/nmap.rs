@@ -1,30 +1,21 @@
-use super::{from_str, FromFile, SanityCheck};
+use crate::{from_str, FromFile, SanityCheck};
 
+use serde::Deserialize;
 use std::net::IpAddr;
 use std::str::FromStr;
 
-error_chain! {
-    errors {
-        InvalidNmapFile {
-            description("invalid nmap file")
-        }
-        InsaneNmapFile(reason: String) {
-            description("invalid nmap file")
-            display("invalid nmap file because {}", reason)
-        }
-        InvalidHostState(invalid: String) {
-            description("invalid host state")
-            display("invalid host state: {}", invalid)
-        }
-        InvalidHostNameType(invalid: String) {
-            description("invalid hostname type")
-            display("invalid hostname type: {}", invalid)
-        }
-        InvalidPortStatus(invalid: String) {
-            description("invalid port status")
-            display("invalid port status: {}", invalid)
-        }
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("invalid nmap file because {0}")]
+    InsaneNmapFile(String),
+    #[error("invalid host state: {0}")]
+    InvalidHostState(String),
+    #[error("invalid hostname type: {0}")]
+    InvalidHostNameType(String),
+    #[error("invalid port status: {0}")]
+    InvalidPortStatus(String),
+    #[error("invalid address type: {0}")]
+    InvalidAddressType(String),
 }
 
 #[derive(Debug)]
@@ -38,29 +29,30 @@ pub struct Run {
 impl FromStr for Run {
     type Err = Error;
 
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-        parser::Run::from_str(s).map(Run::from)
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parser::Run::from_str(s).and_then(Run::try_from)
     }
 }
 
-impl From<parser::Run> for Run {
-    fn from(p_run: parser::Run) -> Run {
+impl TryFrom<parser::Run> for Run {
+    type Error = Error;
+
+    fn try_from(p_run: parser::Run) -> Result<Run, Error> {
         let hosts: Vec<Host> = p_run
             .hosts
             .into_iter()
-            .map(|x| match x {
+            .filter_map(|x| match x {
                 parser::RunElement::Host(host) => Some(host),
                 _ => None,
             })
-            .flatten()
-            .map(Host::from)
-            .collect();
-        Run {
+            .map(Host::try_from)
+            .collect::<Result<_, _>>()?;
+        Ok(Run {
             scanner: p_run.scanner,
             args: p_run.args,
             start: p_run.start,
             hosts,
-        }
+        })
     }
 }
 
@@ -69,11 +61,11 @@ impl FromFile for Run {}
 impl SanityCheck for Run {
     type Error = Error;
 
-    fn is_sane(&self) -> Result<()> {
+    fn is_sane(&self) -> Result<(), Error> {
         if !self.has_dd_options() {
-            return Err(Error::from_kind(ErrorKind::InsaneNmapFile(
+            return Err(Error::InsaneNmapFile(
                 "nmap has been run without -dd option; use nmap -dd ..".to_owned(),
-            )));
+            ));
         }
 
         for host in &self.hosts {
@@ -101,42 +93,46 @@ pub struct Host {
     pub extra_ports: Option<Vec<ExtraPorts>>,
 }
 
-impl From<parser::Host> for Host {
-    fn from(p_host: parser::Host) -> Host {
+impl TryFrom<parser::Host> for Host {
+    type Error = Error;
+
+    fn try_from(p_host: parser::Host) -> Result<Host, Error> {
         let ports = p_host.ports.ports.into_iter().map(Port::from).collect();
-        Host {
+        let addresses = p_host
+            .addresses
+            .into_iter()
+            .map(Address::try_from)
+            .collect::<Result<_, _>>()?;
+        Ok(Host {
             starttime: p_host.starttime,
             endtime: p_host.endtime,
             status: p_host.status,
-            addresses: p_host.addresses,
+            addresses,
             hostnames: p_host.hostnames.hostnames,
             ports,
             extra_ports: p_host.ports.extra_ports,
-        }
+        })
     }
 }
 
 impl SanityCheck for Host {
     type Error = Error;
 
-    fn is_sane(&self) -> Result<()> {
+    fn is_sane(&self) -> Result<(), Error> {
         if self.has_extra_ports() {
-            return Err(Error::from_kind(ErrorKind::InsaneNmapFile(
+            return Err(Error::InsaneNmapFile(
                 "Host has extraports defined; use nmap -dd ...".to_owned(),
-            )));
+            ));
         }
         if self.addresses.is_empty() {
-            return Err(Error::from_kind(ErrorKind::InsaneNmapFile(
-                "Host has no addresses".to_owned(),
-            )));
+            return Err(Error::InsaneNmapFile("Host has no addresses".to_owned()));
         }
-        if !self.addresses.iter().any(|addr| match addr {
-            Address::IpV4 { .. } => true,
-            _ => false,
-        }) {
-            return Err(Error::from_kind(ErrorKind::InsaneNmapFile(
-                "Host has no IP address".to_owned(),
-            )));
+        if !self
+            .addresses
+            .iter()
+            .any(|addr| matches!(addr, Address::IpV4 { .. }))
+        {
+            return Err(Error::InsaneNmapFile("Host has no IP address".to_owned()));
         }
 
         Ok(())
@@ -149,24 +145,35 @@ impl Host {
     }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(tag = "addrtype")]
+#[derive(Debug)]
 pub enum Address {
-    #[serde(rename = "ipv4")]
-    IpV4 {
-        #[serde(deserialize_with = "from_str")]
-        addr: IpAddr,
-    },
-    #[serde(rename = "mac")]
+    IpV4 { addr: IpAddr },
     Mac { addr: String },
+}
+
+impl TryFrom<parser::Address> for Address {
+    type Error = Error;
+
+    fn try_from(p_addr: parser::Address) -> Result<Address, Error> {
+        match p_addr.addrtype.as_str() {
+            "ipv4" => {
+                let addr = IpAddr::from_str(&p_addr.addr)
+                    .map_err(|_| Error::InvalidAddressType(p_addr.addr.clone()))?;
+                Ok(Address::IpV4 { addr })
+            }
+            "mac" => Ok(Address::Mac { addr: p_addr.addr }),
+            other => Err(Error::InvalidAddressType(other.to_owned())),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct HostStatus {
-    #[serde(deserialize_with = "from_str")]
+    #[serde(rename = "@state", deserialize_with = "from_str")]
     pub state: HostState,
+    #[serde(rename = "@reason")]
     pub reason: String,
-    #[serde(deserialize_with = "from_str")]
+    #[serde(rename = "@reason_ttl", deserialize_with = "from_str")]
     pub reason_ttl: usize,
 }
 
@@ -182,22 +189,23 @@ pub enum HostState {
 impl FromStr for HostState {
     type Err = Error;
 
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim().to_lowercase();
         match s.as_ref() {
             "up" => Ok(HostState::Up),
             "down" => Ok(HostState::Down),
             "unknown" => Ok(HostState::Unknown),
             "skipped" => Ok(HostState::Skipped),
-            _ => Err(Error::from_kind(ErrorKind::InvalidHostState(s))),
+            _ => Err(Error::InvalidHostState(s)),
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct HostName {
+    #[serde(rename = "@name")]
     pub name: String,
-    #[serde(rename = "type", deserialize_with = "from_str")]
+    #[serde(rename = "@type", deserialize_with = "from_str")]
     pub typ: HostNameType,
 }
 
@@ -211,21 +219,21 @@ pub enum HostNameType {
 impl FromStr for HostNameType {
     type Err = Error;
 
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim().to_lowercase();
         match s.as_ref() {
             "user" => Ok(HostNameType::User),
             "ptr" => Ok(HostNameType::Ptr),
-            _ => Err(Error::from_kind(ErrorKind::InvalidHostNameType(s))),
+            _ => Err(Error::InvalidHostNameType(s)),
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ExtraPorts {
-    #[serde(deserialize_with = "from_str")]
+    #[serde(rename = "@state", deserialize_with = "from_str")]
     pub state: PortStatus,
-    #[serde(deserialize_with = "from_str")]
+    #[serde(rename = "@count", deserialize_with = "from_str")]
     pub count: u16,
 }
 
@@ -266,7 +274,7 @@ pub enum PortStatus {
 impl FromStr for PortStatus {
     type Err = Error;
 
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim().to_lowercase();
         match s.as_ref() {
             "open" => Ok(PortStatus::Open),
@@ -275,54 +283,54 @@ impl FromStr for PortStatus {
             "closed" => Ok(PortStatus::Closed),
             "open|filtered" => Ok(PortStatus::OpenFiltered),
             "close|filtered" => Ok(PortStatus::CloseFiltered),
-            _ => Err(Error::from_kind(ErrorKind::InvalidPortStatus(s))),
+            _ => Err(Error::InvalidPortStatus(s)),
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct PortService {
+    #[serde(rename = "@name")]
     pub name: String,
+    #[serde(rename = "@method")]
     pub method: String,
-    #[serde(deserialize_with = "from_str")]
+    #[serde(rename = "@conf", deserialize_with = "from_str")]
     pub conf: usize,
 }
 
 mod parser {
     use super::*;
 
-    use serde_xml_rs;
-
     #[derive(Debug, Deserialize)]
     pub struct Run {
+        #[serde(rename = "@scanner")]
         pub scanner: String,
+        #[serde(rename = "@args")]
         pub args: String,
-        #[serde(deserialize_with = "from_str")]
+        #[serde(rename = "@start", deserialize_with = "from_str")]
         pub start: u64,
-        #[serde(rename = "$value")]
+        #[serde(rename = "#content")]
         pub hosts: Vec<RunElement>,
     }
 
     impl FromStr for Run {
         type Err = Error;
 
-        fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-            Run::from_bytes(s.as_bytes())
-        }
-    }
-
-    impl Run {
-        fn from_bytes(buffer: &[u8]) -> Result<Self> {
-            let run = serde_xml_rs::deserialize(buffer);
-            match run {
-            Ok(x) => Ok(x),
-            // cf. `Host#Address`
-            Err(serde_xml_rs::Error::Custom(ref s)) if s == "duplicate field `address`" =>
-                Err(Error::from_kind(ErrorKind::InsaneNmapFile(
-                "could not parse file, because parser currently supports only one address per host".to_owned()))),
-            Err(e) => Err(Error::from_kind(ErrorKind::InsaneNmapFile(
-                format!("could not parse file, because {}", e)))),
-        }
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            match serde_xml_rs::from_str::<Run>(s) {
+                Ok(x) => Ok(x),
+                // cf. `Host#Address`
+                Err(e) if e.to_string().contains("duplicate field `address`") => {
+                    Err(Error::InsaneNmapFile(
+                        "could not parse file, because parser currently supports only one address per host"
+                            .to_owned(),
+                    ))
+                }
+                Err(e) => Err(Error::InsaneNmapFile(format!(
+                    "could not parse file, because {}",
+                    e
+                ))),
+            }
         }
     }
 
@@ -373,9 +381,9 @@ mod parser {
 
     #[derive(Debug, Deserialize)]
     pub struct Host {
-        #[serde(deserialize_with = "from_str", default)]
+        #[serde(rename = "@starttime", deserialize_with = "from_str", default)]
         pub starttime: usize,
-        #[serde(deserialize_with = "from_str", default)]
+        #[serde(rename = "@endtime", deserialize_with = "from_str", default)]
         pub endtime: usize,
         pub status: HostStatus,
         #[serde(rename = "address")]
@@ -384,6 +392,14 @@ mod parser {
         pub hostnames: HostNames,
         #[serde(default)]
         pub ports: Ports,
+    }
+
+    #[derive(Debug, Deserialize)]
+    pub struct Address {
+        #[serde(rename = "@addr")]
+        pub addr: String,
+        #[serde(rename = "@addrtype")]
+        pub addrtype: String,
     }
 
     #[derive(Debug, Deserialize)]
@@ -408,8 +424,9 @@ mod parser {
 
     #[derive(Debug, Deserialize)]
     pub struct Port {
+        #[serde(rename = "@protocol")]
         pub protocol: String,
-        #[serde(rename = "portid", deserialize_with = "from_str")]
+        #[serde(rename = "@portid", deserialize_with = "from_str")]
         pub id: u16,
         pub state: PortState,
         pub service: PortService,
@@ -417,10 +434,11 @@ mod parser {
 
     #[derive(Debug, Deserialize)]
     pub struct PortState {
-        #[serde(deserialize_with = "from_str")]
+        #[serde(rename = "@state", deserialize_with = "from_str")]
         pub state: PortStatus,
+        #[serde(rename = "@reason")]
         pub reason: String,
-        #[serde(deserialize_with = "from_str")]
+        #[serde(rename = "@reason_ttl", deserialize_with = "from_str")]
         pub reason_ttl: usize,
     }
 
@@ -428,13 +446,9 @@ mod parser {
     mod tests {
         use super::*;
 
-        use serde_xml_rs;
-        use spectral::prelude::*;
-
         #[test]
         fn parse_host_extraports() {
-            let s = r##"
-        <host starttime="1531991145" endtime="1531991167">
+            let s = r#"<host starttime="1531991145" endtime="1531991167">
           <status state="up" reason="user-set" reason_ttl="0"/>
           <address addr="192.168.0.1" addrtype="ipv4"/>
           <hostnames>
@@ -458,19 +472,17 @@ mod parser {
             </port>
           </ports>
           <times srtt="9740" rttvar="1384" to="100000"/>
-        </host>
-      "##;
+        </host>"#;
 
-            let p_host: parser::Host = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
-            let host: Host = p_host.into();
+            let p_host: parser::Host = serde_xml_rs::from_str(s).unwrap();
+            let host: super::super::Host = p_host.try_into().unwrap();
 
-            assert_that(&host.is_sane()).is_err();
+            assert!(host.is_sane().is_err());
         }
 
         #[test]
         fn parse_host_with_multiple_addresses() {
-            let s = r##"
-        <host starttime="1531991145" endtime="1531991167">
+            let s = r#"<host starttime="1531991145" endtime="1531991167">
           <status state="up" reason="user-set" reason_ttl="0"/>
           <address addr="192.168.0.1" addrtype="ipv4"/>
           <address addr="00:11:DD:5D:2E:DD" addrtype="mac" vendor="Synology Incorporated"/>
@@ -495,33 +507,29 @@ mod parser {
             </port>
           </ports>
           <times srtt="9740" rttvar="1384" to="100000"/>
-        </host>
-      "##;
+        </host>"#;
 
-            let p_host: parser::Host = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
-            let host: Host = p_host.into();
+            let p_host: parser::Host = serde_xml_rs::from_str(s).unwrap();
+            let host: super::super::Host = p_host.try_into().unwrap();
 
-            assert_that(&host.is_sane()).is_err();
+            assert!(host.is_sane().is_err());
         }
 
         #[test]
         fn parse_no_dd_okay() {
-            let s = NMAP_NO_DD_DATA;
-            let nmaprun: parser::Run = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
+            let nmaprun: parser::Run = serde_xml_rs::from_str(NMAP_NO_DD_DATA).unwrap();
             println!("{:#?}", nmaprun);
         }
 
         #[test]
         fn no_dd_data_is_insane() {
-            let s = NMAP_NO_DD_DATA;
-            let p_run: parser::Run = serde_xml_rs::deserialize(s.as_bytes()).unwrap();
-            let nmaprun: Run = p_run.into();
+            let p_run: parser::Run = serde_xml_rs::from_str(NMAP_NO_DD_DATA).unwrap();
+            let nmaprun: super::super::Run = p_run.try_into().unwrap();
 
-            assert_that(&nmaprun.is_sane()).is_err();
+            assert!(nmaprun.is_sane().is_err());
         }
 
-        const NMAP_NO_DD_DATA: &str = r##"
-<?xml version="1.0" encoding="UTF-8"?>
+        const NMAP_NO_DD_DATA: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE nmaprun>
 <?xml-stylesheet href="file:///usr/local/bin/../share/nmap/nmap.xsl" type="text/xsl"?>
 <!-- Nmap 7.70 scan initiated Thu Jul 19 11:05:45 2018 as: nmap -v -n -Pn -T4 -sS -oX nmap-3hosts-result.xml 192.168.0.1 192.168.0.2 192.168.0.3 -->
@@ -607,6 +615,6 @@ mod parser {
     <hosts up="3" down="0" total="3"/>
   </runstats>
 </nmaprun>
-        "##;
+"##;
     }
 }

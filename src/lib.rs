@@ -1,32 +1,15 @@
-extern crate clams;
-#[macro_use]
-extern crate error_chain;
-#[macro_use]
-extern crate log;
-extern crate prettytable;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-extern crate serde_xml_rs;
-extern crate serde_yaml;
-
-#[cfg(test)]
-#[macro_use]
-extern crate spectral;
-
 pub mod analyze;
 pub mod mapping;
 pub mod nmap;
 pub mod output;
 pub mod portspec;
 
-pub use analyze::{
+pub use crate::analyze::{
     default_analysis, Analyzer, AnalyzerResult, HostAnalysisResult, HostAnalysisSummary,
 };
-pub use mapping::Mapping;
-pub use nmap::Run;
-pub use portspec::PortSpecs;
+pub use crate::mapping::Mapping;
+pub use crate::nmap::Run;
+pub use crate::portspec::PortSpecs;
 
 use serde::de::{self, Deserialize, Deserializer};
 use std::fmt::Display;
@@ -34,42 +17,30 @@ use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 
-error_chain! {
-    errors {
-        InvalidFileFormat {
-            description("invalid file format")
-        }
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum FromFileError {
+    #[error("failed to read file: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("invalid file format: {0}")]
+    Parse(#[source] anyhow::Error),
 }
 
-pub trait FromFile {
-    fn from_file<P: AsRef<Path>, E>(path: P) -> ::std::result::Result<Self, Error>
-    where
-        Self: Sized + FromStr<Err = E>,
-        E: error_chain::ChainedError,
-    {
-        let contents = Self::string_from_file(path).chain_err(|| ErrorKind::InvalidFileFormat)?;
-
-        Self::from_str(&contents).chain_err(|| ErrorKind::InvalidFileFormat)
-    }
-
-    fn string_from_file<P: AsRef<Path>>(
-        path: P,
-    ) -> ::std::result::Result<String, ::std::io::Error> {
-        let path: &Path = path.as_ref();
-
-        let  contents = fs::read_to_string(path)?;
-
-        Ok(contents)
+pub trait FromFile: Sized + FromStr
+where
+    <Self as FromStr>::Err: std::error::Error + Send + Sync + 'static,
+{
+    fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, FromFileError> {
+        let contents = fs::read_to_string(path.as_ref())?;
+        Self::from_str(&contents).map_err(|e| FromFileError::Parse(anyhow::Error::new(e)))
     }
 }
 
 pub trait SanityCheck {
     type Error;
-    fn is_sane(&self) -> ::std::result::Result<(), Self::Error>;
+    fn is_sane(&self) -> std::result::Result<(), Self::Error>;
 }
 
-fn from_str<'de, T, D>(deserializer: D) -> ::std::result::Result<T, D::Error>
+pub(crate) fn from_str<'de, T, D>(deserializer: D) -> std::result::Result<T, D::Error>
 where
     T: FromStr,
     T::Err: Display,

@@ -1,21 +1,14 @@
-use super::{from_str, FromFile};
+use crate::{from_str, FromFile};
 
-use serde_yaml;
+use serde::Deserialize;
 use std::str::FromStr;
 
-error_chain! {
-    errors {
-        InvalidPortSpecsFile {
-            description("invalid port specs file")
-        }
-        InvalidPortSpecs {
-            description("invalid port specs")
-        }
-        InvalidPortState(invalid: String) {
-            description("invalid port state")
-            display("invalid port state: {}", invalid)
-        }
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("invalid port specs: {0}")]
+    InvalidPortSpecs(#[from] serde_yaml_ng::Error),
+    #[error("invalid port state: {0}")]
+    InvalidPortState(String),
 }
 
 #[derive(Debug, Deserialize)]
@@ -27,14 +20,8 @@ pub struct PortSpecs {
 impl FromStr for PortSpecs {
     type Err = Error;
 
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-        PortSpecs::from_bytes(s.as_bytes())
-    }
-}
-
-impl PortSpecs {
-    fn from_bytes(buffer: &[u8]) -> Result<Self> {
-        serde_yaml::from_slice(buffer).chain_err(|| ErrorKind::InvalidPortSpecs)
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(serde_yaml_ng::from_slice(s.as_bytes())?)
     }
 }
 
@@ -66,13 +53,13 @@ pub enum PortState {
 impl FromStr for PortState {
     type Err = Error;
 
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim().to_lowercase();
         match s.as_ref() {
             "closed" => Ok(PortState::Closed),
             "maybe" => Ok(PortState::Maybe),
             "open" => Ok(PortState::Open),
-            _ => Err(Error::from_kind(ErrorKind::InvalidPortState(s))),
+            _ => Err(Error::InvalidPortState(s)),
         }
     }
 }
@@ -80,8 +67,6 @@ impl FromStr for PortState {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use spectral::prelude::*;
 
     #[test]
     fn parse_portspecs_okay() {
@@ -101,11 +86,7 @@ portspecs:
         state: open
         "##;
 
-        let res = PortSpecs::from_str(s);
-        println!("{:#?}", res);
-
-        assert_that(&res).is_ok();
-        let port_specs = res.unwrap();
-        assert_that(&port_specs.port_specs).has_length(2);
+        let port_specs = PortSpecs::from_str(s).expect("parse failed");
+        assert_eq!(port_specs.port_specs.len(), 2);
     }
 }

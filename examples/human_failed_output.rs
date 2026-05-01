@@ -1,10 +1,5 @@
-extern crate nmap_analyze;
-extern crate spectral;
-
-use nmap_analyze::output::{OutputConfig, OutputDetail, OutputFormat};
+use nmap_analyze::output::{HumanOutput, OutputConfig, OutputDetail, OutputFormat};
 use nmap_analyze::*;
-
-use spectral::prelude::*;
 
 fn main() {
     let expected_output = r##"
@@ -27,7 +22,6 @@ fn main() {
 |             |          |        | 5001 | failed      | expected Closed, found Open |
 +-------------+----------+--------+------+-------------+-----------------------------+
 "##;
-    use nmap_analyze::output::HumanOutput;
 
     let portspecs =
         PortSpecs::from_file("tests/portspecs.yml").expect("Failed to load portspecs file");
@@ -44,14 +38,12 @@ fn main() {
         color: false,
     };
 
-    let mut buffer = String::from("\n"); // \n allows for nicer expected raw string formatting.
+    let mut buffer = String::from("\n");
     unsafe {
         analyzer_result
             .output(&output_config, &mut buffer.as_mut_vec())
-            .expect("Output failed")
+            .expect("Output failed");
     }
 
-    asserting("Output is correct")
-        .that(&buffer.as_ref())
-        .is_equal_to(expected_output);
+    assert_eq!(buffer.as_str(), expected_output, "Output is correct");
 }

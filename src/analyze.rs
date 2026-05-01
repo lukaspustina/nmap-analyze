@@ -1,7 +1,9 @@
-use mapping::Mapping;
-use nmap::{self, Address, Run};
-use portspec::{self, PortSpecs};
+use crate::mapping::Mapping;
+use crate::nmap::{self, Address, Run};
+use crate::portspec::{self, PortSpecs};
 
+use log::{debug, trace};
+use serde::Serialize;
 use std::collections::{BTreeMap, HashSet};
 use std::iter::FromIterator;
 use std::net::IpAddr;
@@ -16,7 +18,7 @@ pub fn default_analysis<'a>(
     mapping: &'a Mapping,
     portspecs: &'a PortSpecs,
 ) -> AnalyzerResult<'a> {
-    let analyzer = Analyzer::new(&nmap_run, &mapping, &portspecs);
+    let analyzer = Analyzer::new(nmap_run, mapping, portspecs);
     let host_analysis_results = analyzer.analyze_hosts();
 
     let mut pass = 0;
@@ -85,8 +87,8 @@ pub struct Analyzer<'a> {
 
 impl<'a> Analyzer<'a> {
     pub fn new(nmap_run: &'a Run, mapping: &'a Mapping, portspecs: &'a PortSpecs) -> Analyzer<'a> {
-        let scanned_host_by_ip = run_to_scanned_hosts_by_ip(&nmap_run);
-        let portspec_by_ip = portspec_by_ip(&mapping, &portspecs);
+        let scanned_host_by_ip = run_to_scanned_hosts_by_ip(nmap_run);
+        let portspec_by_ip = portspec_by_ip(mapping, portspecs);
 
         Analyzer {
             scanned_host_by_ip,
@@ -116,7 +118,7 @@ fn run_to_scanned_hosts_by_ip(nmap_run: &Run) -> BTreeMap<&IpAddr, &nmap::Host> 
     let mut shbi = BTreeMap::new();
     for host in &nmap_run.hosts {
         for address in &host.addresses {
-            if let Address::IpV4{ ref addr } = address {
+            if let Address::IpV4 { ref addr } = address {
                 shbi.insert(addr, host);
             }
         }
@@ -186,7 +188,7 @@ fn analyze_host<'a>(
             let ps_port = if let Some(p) = portspec.ports.iter().find(|x| x.id == port.id) {
                 p
             } else {
-                &IMPLICIT_CLOSED_PORTSPEC
+                IMPLICIT_CLOSED_PORTSPEC
             };
             let par = match ps_port {
                 portspec::Port {
@@ -236,10 +238,7 @@ fn analyze_host<'a>(
 
     let failed = ports
         .iter()
-        .filter(|x| match x {
-            PortAnalysisResult::Pass(_, _) => false,
-            _ => true,
-        })
+        .filter(|x| !matches!(x, PortAnalysisResult::Pass(_, _)))
         .count();
     let summary = if failed > 0 {
         HostAnalysisSummary::Fail
@@ -267,11 +266,9 @@ pub struct AnalyzerResult<'a> {
 mod tests {
     use super::*;
 
-    use mapping;
-    use nmap;
-    use portspec;
-
-    use spectral::prelude::*;
+    use crate::mapping;
+    use crate::nmap;
+    use crate::portspec;
 
     #[test]
     fn analyzer_no_mapping_for_ip() {
@@ -296,20 +293,24 @@ mod tests {
         let analyzer = Analyzer::new(&nmap, &mapping, &portspecs);
         let analysis = analyzer.analyze_hosts();
 
-        assert_that(&analysis).has_length(2);
-        let res0 = &analysis[0];
-        assert_that!(&res0.summary).is_equal_to(HostAnalysisSummary::Error {
-            reason: "no port spec found for this IP address".to_owned(),
-        });
-        let res1 = &analysis[1];
-        assert_that!(&res1.summary).is_equal_to(HostAnalysisSummary::Error {
-            reason: "no port spec found for this IP address".to_owned(),
-        });
+        assert_eq!(analysis.len(), 2);
+        assert_eq!(
+            analysis[0].summary,
+            HostAnalysisSummary::Error {
+                reason: "no port spec found for this IP address".to_owned(),
+            }
+        );
+        assert_eq!(
+            analysis[1].summary,
+            HostAnalysisSummary::Error {
+                reason: "no port spec found for this IP address".to_owned(),
+            }
+        );
     }
 
     #[test]
     fn analyze_host_explicit_and_implicit_ports_okay() {
-        let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
+        let ip: IpAddr = "192.168.0.1".parse().unwrap();
         let portspec = portspec::PortSpec {
             name: "Group A".to_owned(),
             ports: vec![
@@ -332,7 +333,7 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            addresses: vec![Address::IpV4 { addr: ip.clone() }],
+            addresses: vec![Address::IpV4 { addr: ip }],
             hostnames: vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
@@ -379,14 +380,12 @@ mod tests {
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
-        println!("Analysis: {:?}", analysis);
-
-        assert_that!(&analysis.summary).is_equal_to(HostAnalysisSummary::Pass);
+        assert_eq!(analysis.summary, HostAnalysisSummary::Pass);
     }
 
     #[test]
     fn analyze_host_explicit_port_fail() {
-        let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
+        let ip: IpAddr = "192.168.0.1".parse().unwrap();
         let portspec = portspec::PortSpec {
             name: "Group A".to_owned(),
             ports: vec![
@@ -409,7 +408,7 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            addresses: vec![Address::IpV4 { addr: ip.clone() }],
+            addresses: vec![Address::IpV4 { addr: ip }],
             hostnames: vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
@@ -456,14 +455,12 @@ mod tests {
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
-        println!("Analysis: {:?}", analysis);
-
-        assert_that!(&analysis.summary).is_equal_to(HostAnalysisSummary::Fail);
+        assert_eq!(analysis.summary, HostAnalysisSummary::Fail);
     }
 
     #[test]
     fn analyze_host_explicit_port_not_scanned() {
-        let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
+        let ip: IpAddr = "192.168.0.1".parse().unwrap();
         let portspec = portspec::PortSpec {
             name: "Group A".to_owned(),
             ports: vec![
@@ -486,7 +483,7 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            addresses: vec![Address::IpV4 { addr: ip.clone() }],
+            addresses: vec![Address::IpV4 { addr: ip }],
             hostnames: vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
@@ -521,25 +518,23 @@ mod tests {
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
-        println!("Analysis: {:?}", analysis);
+        assert_eq!(
+            analysis.summary,
+            HostAnalysisSummary::Fail,
+            "scan fails because an explicit port has not been scanned"
+        );
 
-        asserting("Scan fails because an explicit port has not been scanned")
-            .that(&analysis.summary)
-            .is_equal_to(HostAnalysisSummary::Fail);
-
-        let ports = &analysis.port_results;
-        let unscanned: Vec<_> = ports
+        let unscanned: Vec<_> = analysis
+            .port_results
             .iter()
             .filter(|x| *x == &PortAnalysisResult::NotScanned(25u16))
             .collect();
-        asserting("Port 25 has not been scanned")
-            .that(&unscanned)
-            .has_length(1);
+        assert_eq!(unscanned.len(), 1, "port 25 has not been scanned");
     }
 
     #[test]
     fn analyze_host_implicit_port_open() {
-        let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
+        let ip: IpAddr = "192.168.0.1".parse().unwrap();
         let portspec = portspec::PortSpec {
             name: "Group A".to_owned(),
             ports: vec![
@@ -562,7 +557,7 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            addresses: vec![Address::IpV4 { addr: ip.clone() }],
+            addresses: vec![Address::IpV4 { addr: ip }],
             hostnames: vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
@@ -609,23 +604,23 @@ mod tests {
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
-        println!("Analysis: {:?}", analysis);
+        assert_eq!(
+            analysis.summary,
+            HostAnalysisSummary::Fail,
+            "scan fails because an implicit port is open"
+        );
 
-        asserting("Scan fails because an implicit port is open")
-            .that(&analysis.summary)
-            .is_equal_to(HostAnalysisSummary::Fail);
-
-        let ports = &analysis.port_results;
-        let unscanned: Vec<_> = ports
+        let unscanned: Vec<_> = analysis
+            .port_results
             .iter()
             .filter(|x| *x == &PortAnalysisResult::Fail(443u16, PortAnalysisReason::ClosedButOpen))
             .collect();
-        asserting("Port 443 is open").that(&unscanned).has_length(1);
+        assert_eq!(unscanned.len(), 1, "port 443 is open");
     }
 
     #[test]
     fn analyze_host_maybe_port_open() {
-        let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
+        let ip: IpAddr = "192.168.0.1".parse().unwrap();
         let portspec = portspec::PortSpec {
             name: "Group A".to_owned(),
             ports: vec![portspec::Port {
@@ -642,7 +637,7 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            addresses: vec![Address::IpV4 { addr: ip.clone() }],
+            addresses: vec![Address::IpV4 { addr: ip }],
             hostnames: vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
@@ -663,25 +658,23 @@ mod tests {
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
-        println!("Analysis: {:?}", analysis);
+        assert_eq!(
+            analysis.summary,
+            HostAnalysisSummary::Pass,
+            "scan succeeds because a maybe port is open"
+        );
 
-        asserting("Scan succeeds because a maybe port is open")
-            .that(&analysis.summary)
-            .is_equal_to(HostAnalysisSummary::Pass);
-
-        let ports = &analysis.port_results;
-        let unscanned: Vec<_> = ports
+        let unscanned: Vec<_> = analysis
+            .port_results
             .iter()
             .filter(|x| *x == &PortAnalysisResult::Pass(25u16, PortAnalysisReason::MaybeAndOpen))
             .collect();
-        asserting("Port 25 is maybe open")
-            .that(&unscanned)
-            .has_length(1);
+        assert_eq!(unscanned.len(), 1, "port 25 is maybe open");
     }
 
     #[test]
     fn analyze_host_maybe_port_closed() {
-        let ip: IpAddr = "192.168.0.1".parse().unwrap(); // Safe
+        let ip: IpAddr = "192.168.0.1".parse().unwrap();
         let portspec = portspec::PortSpec {
             name: "Group A".to_owned(),
             ports: vec![portspec::Port {
@@ -698,7 +691,7 @@ mod tests {
                 reason: "user-set".to_owned(),
                 reason_ttl: 0,
             },
-            addresses: vec![Address::IpV4 { addr: ip.clone() }],
+            addresses: vec![Address::IpV4 { addr: ip }],
             hostnames: vec![HostName {
                 name: format!("{}", ip),
                 typ: HostNameType::User,
@@ -719,20 +712,18 @@ mod tests {
         };
 
         let analysis = analyze_host(&ip, &host, &portspec);
-        println!("Analysis: {:?}", analysis);
+        assert_eq!(
+            analysis.summary,
+            HostAnalysisSummary::Pass,
+            "scan succeeds because a maybe port is closed"
+        );
 
-        asserting("Scan succeeds because a maybe port is closed")
-            .that(&analysis.summary)
-            .is_equal_to(HostAnalysisSummary::Pass);
-
-        let ports = &analysis.port_results;
-        let unscanned: Vec<_> = ports
+        let unscanned: Vec<_> = analysis
+            .port_results
             .iter()
             .filter(|x| *x == &PortAnalysisResult::Pass(25u16, PortAnalysisReason::MaybeAndClosed))
             .collect();
-        asserting("Port 25 is maybe closed")
-            .that(&unscanned)
-            .has_length(1);
+        assert_eq!(unscanned.len(), 1, "port 25 is maybe closed");
     }
 
     #[test]
@@ -786,13 +777,9 @@ mod tests {
         let analyzer = Analyzer::new(&nmap, &mapping, &portspecs);
         let analysis_results = analyzer.analyze_hosts();
 
-        assert_that!(&analysis_results).has_length(2);
-        let res0 = analysis_results.get(0);
-        assert_that!(&res0).is_some();
-        assert_that!(&res0.unwrap().summary).is_equal_to(HostAnalysisSummary::Fail);
-        let res1 = analysis_results.get(1);
-        assert_that!(&res1).is_some();
-        assert_that!(&res1.unwrap().summary).is_equal_to(HostAnalysisSummary::Pass);
+        assert_eq!(analysis_results.len(), 2);
+        assert_eq!(analysis_results[0].summary, HostAnalysisSummary::Fail);
+        assert_eq!(analysis_results[1].summary, HostAnalysisSummary::Pass);
     }
 
     fn nmap_data() -> nmap::Run {

@@ -1,19 +1,13 @@
-use super::FromFile;
+use crate::FromFile;
 
 use serde::{Deserialize, Deserializer};
-use serde_json;
 use std::net::IpAddr;
 use std::str::FromStr;
 
-error_chain! {
-    errors {
-        InvalidMappingFile {
-            description("Invalid mappings file")
-        }
-        InvalidMappings {
-            description("Invalid mappings")
-        }
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("invalid mappings: {0}")]
+    InvalidMappings(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Deserialize)]
@@ -24,14 +18,8 @@ pub struct Mapping {
 impl FromStr for Mapping {
     type Err = Error;
 
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-        Mapping::from_bytes(s.as_bytes())
-    }
-}
-
-impl Mapping {
-    fn from_bytes(buffer: &[u8]) -> Result<Self> {
-        serde_json::from_slice(buffer).chain_err(|| ErrorKind::InvalidMappings)
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(serde_json::from_slice(s.as_bytes())?)
     }
 }
 
@@ -48,25 +36,20 @@ pub struct Host {
     pub port_spec: String,
 }
 
-fn vec_ip_addr<'de, D>(deserializer: D) -> ::std::result::Result<Vec<IpAddr>, D::Error>
+fn vec_ip_addr<'de, D>(deserializer: D) -> Result<Vec<IpAddr>, D::Error>
 where
     D: Deserializer<'de>,
 {
     use serde::de::Error;
-    let v = Vec::deserialize(deserializer)?;
-    let res: ::std::result::Result<Vec<IpAddr>, _> = v
-        .into_iter()
-        .map(|a: &str| IpAddr::from_str(a).map_err(Error::custom))
-        .collect();
-
-    res
+    let v = Vec::<String>::deserialize(deserializer)?;
+    v.into_iter()
+        .map(|a| IpAddr::from_str(&a).map_err(Error::custom))
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use spectral::prelude::*;
 
     #[test]
     fn parse_mapping_okay() {
@@ -98,11 +81,7 @@ mod tests {
 }
         "##;
 
-        let res = Mapping::from_str(s);
-        println!("{:#?}", res);
-
-        assert_that(&res).is_ok();
-        let mapping = res.unwrap();
-        assert_that(&mapping.mappings).has_length(3);
+        let mapping = Mapping::from_str(s).expect("parse failed");
+        assert_eq!(mapping.mappings.len(), 3);
     }
 }

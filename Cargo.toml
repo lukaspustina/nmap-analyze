@@ -8,24 +8,21 @@ homepage = "https://github.com/lukaspustina/nmap-analyze"
 readme = "README.md"
 license = "MIT"
 keywords = ["cli", "nmap", "security"]
+edition = "2021"
 
 [badges]
 travis-ci = { repository = "lukaspustina/nmap-analyze", branch = "master" }
 codecov = { repository = "lukaspustina/nmap-analyze", branch = "master", service = "github" }
 
 [dependencies]
-clams = "^0.0.13"
-error-chain = "^0.12"
-log = "^0.4"
-prettytable-rs = "^0.10"
-serde = "^1.0"
-serde_derive = "^1.0"
-serde_json = "^1.0"
-serde_yaml = "^0.7"
-serde-xml-rs = "^0.2"
-structopt = "0.2"
-xml-rs = "0.6.0"
-
-[dev-dependencies]
-spectral = "^0.6"
-
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+colored = "3"
+env_logger = "0.11"
+log = "0.4"
+prettytable-rs = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde-xml-rs = "0.8"
+serde_yaml_ng = "0.10"
+thiserror = "2"
