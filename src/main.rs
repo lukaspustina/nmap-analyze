@@ -147,7 +147,9 @@ fn run_nmap_analyze<T: AsRef<Path>>(
     info!("Loading nmap file");
     let nmap_run = Run::from_file(nmap_file.as_ref()).context("failed to load nmap file")?;
     info!("Checking nmap sanity");
-    nmap_run.is_sane().context("nmap file failed sanity check")?;
+    nmap_run
+        .is_sane()
+        .context("nmap file failed sanity check")?;
 
     info!("Analyzing");
     let analyzer_result = default_analysis(&nmap_run, &mapping, &portspecs);
